@@ -73,7 +73,7 @@ es_sce$qc_stats <- perCellQCMetrics(es_sce, subsets=list(ERCC=is_spike, Mt=is_mi
 
 ```{r basic_quality_control_plots, message=FALSE, warning=FALSE}
 # Library sizes in millions
-tiff("../plots/reproduced-old-dissertation/quality-control/library_sizes.tiff", width=7, height=7, units="in", res=300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/quality-control/library_sizes.tiff", width=7, height=7, units="in", res=300)
 hist(es_sce$qc_stats$sum/1e6, 
      xlab="Library sizes (millions)", 
      main="Histogram of Library Sizes", 
@@ -90,7 +90,7 @@ print(hist(es_sce$qc_stats$sum/1e6,
      ylab="Number of cells"))
 
 # Number of detected genes
-tiff("../plots/reproduced-old-dissertation/quality-control/detected_genes.tiff", width=7, height=7, units="in", res=300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/quality-control/detected_genes.tiff", width=7, height=7, units="in", res=300)
 hist(es_sce$qc_stats$detected, 
      xlab="Number of detected genes", 
      main="Histogram of Detected Genes", 
@@ -107,7 +107,7 @@ print(hist(es_sce$qc_stats$detected,
      ylab="Number of cells"))
 
 # Mitochondrial gene proportion (%)
-tiff("../plots/reproduced-old-dissertation/quality-control/mitochondial_proportion.tiff", width=7, height=7, units="in", res=300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/quality-control/mitochondial_proportion.tiff", width=7, height=7, units="in", res=300)
 hist(es_sce$qc_stats$subsets_Mt_percent,
      xlab="Mitochondrial proportion (%)", 
      main="Histogram of Mitochondrial Proportion", 
@@ -124,7 +124,7 @@ print(hist(es_sce$qc_stats$subsets_Mt_percent,
      ylab="Number of cells"))
 
 # ERCC proportion (%)
-tiff("../plots/reproduced-old-dissertation/quality-control/ERCC_proportion.tiff", width=7, height=7, units="in", res=300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/quality-control/ERCC_proportion.tiff", width=7, height=7, units="in", res=300)
 hist(es_sce$qc_stats$subsets_ERCC_percent,
      xlab="ERCC proportion (%)", 
      main="Histogram of ERCC Proportion", 
@@ -258,7 +258,7 @@ sorted_an_seurat_seg <- an_seg_pca_seurat %>% arrange(desc(PC_1))
 sorted_an_seurat_seg <- sorted_an_seurat_seg %>% dplyr::select(ensemblID,gene_name,PC_1,PC_2,PC_3,PC_4,PC_5)
 
 # Write out as csv file
-write.csv(sorted_an_seurat_seg, file = "../output-files/reproduced-old-dissertation/pca-loadings/seurat_normalized_features_not_defined_PCA_ranked.csv", row.names = FALSE)
+write.csv(sorted_an_seurat_seg, file = "/home/s2599932/dissertation-main/output-files/reproduced-old-dissertation/pca-loadings/seurat_normalized_features_not_defined_PCA_ranked.csv", row.names = FALSE)
 ```
 
 ```{r message=FALSE, warning=FALSE}
@@ -291,7 +291,7 @@ umap_compare <- cowplot::plot_grid(p1_umap, p2_umap, ncol = 2, align = 'v',
                                    labels = c("A", "B"),
                                    label_size = 14)
 
-tiff("../plots/reproduced-old-dissertation/dimesionality-reduction-plots/seurat-normalization/seurat_UMAP_compare.tiff", width = 12, height = 8, units = "in", res = 300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/dimesionality-reduction-plots/seurat-normalization/seurat_UMAP_compare.tiff", width = 12, height = 8, units = "in", res = 300)
 print(umap_compare)
 dev.off()
 ```
@@ -321,7 +321,7 @@ tsne_compare <- cowplot::plot_grid(p1_tsne, p2_tsne, ncol = 2, align = 'v',
                                    labels = c("A", "B"),
                                    label_size = 14)
 
-tiff("../plots/reproduced-old-dissertation/dimesionality-reduction-plots/seurat-normalization/seurat_tSNE_compare.tiff", width = 12, height = 8, units = "in", res = 300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/dimesionality-reduction-plots/seurat-normalization/seurat_tSNE_compare.tiff", width = 12, height = 8, units = "in", res = 300)
 print(tsne_compare)
 dev.off()
 ```
@@ -396,7 +396,7 @@ de_pca_compare <- cowplot::plot_grid(de_p1, de_p2, ncol = 2, align = 'v',
                                   label_size = 14)
 
 
-tiff("../plots/reproduced-old-dissertation/dimesionality-reduction-plots/deconvolution-normalization/deconv_pca_compare.tiff", width = 12, height = 8, units = "in", res = 300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/dimesionality-reduction-plots/deconvolution-normalization/deconv_pca_compare.tiff", width = 12, height = 8, units = "in", res = 300)
 print(de_pca_compare)
 dev.off()
 ```
@@ -434,7 +434,7 @@ sorted_an_decon_seg <- an_seg_pca_decon %>% arrange(desc(PC_1))
 sorted_an_decon_seg <- sorted_an_decon_seg %>% dplyr::select(ensemblID,gene_name,PC_1,PC_2,PC_3,PC_4,PC_5)
 
 # Write out as csv file
-write.csv(sorted_an_decon_seg, file = "../output-files/reproduced-old-dissertation/pca-loadings/deconvolution_normalized_features_not_defined_PCA_ranked.csv", row.names = FALSE)
+write.csv(sorted_an_decon_seg, file = "/home/s2599932/dissertation-main/output-files/reproduced-old-dissertation/pca-loadings/deconvolution_normalized_features_not_defined_PCA_ranked.csv", row.names = FALSE)
 ```
 
 
@@ -466,7 +466,7 @@ de_umap_compare <- cowplot::plot_grid(de_p1_umap, de_p2_umap, ncol = 2, align = 
                                    labels = c("A", "B"),
                                    label_size = 14)
 
-tiff("../plots/reproduced-old-dissertation/dimesionality-reduction-plots/deconvolution-normalization/deconv_umap_compare.tiff", width = 12, height = 8, units = "in", res = 300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/dimesionality-reduction-plots/deconvolution-normalization/deconv_umap_compare.tiff", width = 12, height = 8, units = "in", res = 300)
 print(de_umap_compare)
 dev.off()
 ```
@@ -497,7 +497,7 @@ de_tsne_compare <- cowplot::plot_grid(de_p1_tsne, de_p2_tsne, ncol = 2, align = 
                                    labels = c("A", "B"),
                                    label_size = 14)
 
-tiff("../plots/reproduced-old-dissertation/dimesionality-reduction-plots/deconvolution-normalization/deconv_tsne_compare.tiff", width = 12, height = 8, units = "in", res = 300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/dimesionality-reduction-plots/deconvolution-normalization/deconv_tsne_compare.tiff", width = 12, height = 8, units = "in", res = 300)
 print(de_tsne_compare)
 dev.off()
 ```
@@ -568,7 +568,7 @@ cv_p2 <- ggplot(nonseg_plot, aes(x = Gene, y = CV)) +
 
 cv_compare <- cowplot::plot_grid(cv_p1, cv_p2, ncol = 2)
 
-tiff("../plots/reproduced-old-dissertation/additional-plots/cv_compare_plot.tiff", width = 12, height = 8, units = "in", res = 300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/cv_compare_plot.tiff", width = 12, height = 8, units = "in", res = 300)
 print(cv_compare)
 dev.off()
 ```
@@ -592,7 +592,7 @@ print(cv_compare)
 so_seg_all <- RunPCA(so_seg_all, assay = "RNA", verbose = FALSE)
 pca_embedding <- as.data.frame(Embeddings(so_seg_all, reduction = "pca"))
 
-tiff("../plots/reproduced-old-dissertation/additional-plots/PCA_all_cells.tiff", width = 12, height = 8, units = "in", res = 300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/PCA_all_cells.tiff", width = 12, height = 8, units = "in", res = 300)
 DimPlot(so_seg_all, reduction = "pca", group.by = "Type") +
   ggtitle("PCA for all cells (feature = SEG)")
 dev.off()
@@ -616,7 +616,7 @@ so_seg_all$seurat_clusters <- ifelse(
 Idents(so_seg_all) <- factor(so_seg_all$seurat_clusters)
 
 # PLot clusters for all cells with vertical lines
-tiff("../plots/reproduced-old-dissertation/additional-plots/Cluster_all_cells.tiff", width = 12, height = 8, units = "in", res = 300)
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/Cluster_all_cells.tiff", width = 12, height = 8, units = "in", res = 300)
 DimPlot(so_seg_all, reduction = "pca", group.by = "seurat_clusters") +
   ggtitle("Cluster for all cells") +
   geom_vline(xintercept = 4, linetype = "dashed", color = "blue") +
@@ -637,5 +637,49 @@ print(DimPlot(so_seg_all, reduction = "pca", group.by = "seurat_clusters") +
 **Points to Notice**
 - The plot for "cluster for all cell" only shows presence of two clusters, maybe an error on my part.
 - The downstream analysis after dimensionality reduction has only been covered using the seurat pipeline and SingleCellExperiment pipeline of this part has not been created yet.
+
+
+
+```{r message=FALSE, warning=FALSE}
+# Extract the expression data for the gene of interest
+gene_expression_data <- FetchData(so_raw_copy, vars = c("ENSMUSG00000031311", "Type"))
+
+# Create the violin plot
+v1<- VlnPlot(so_raw_copy, features = "ENSMUSG00000031311", group.by = "Type") +
+      ggtitle("Expression of ENSMUSG00000031311 Across Cell Types") +
+      theme_minimal() +
+      labs(y = "Expression Level", x = "Cell Type")
+
+```
+
+
+
+```{r}
+print(v1)
+```
+
+
+
+```{r nono_expression_across_different_cells, fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+# Subset the Seurat object to include only the desired cell types
+selected_cell_types <- subset(so_raw_copy, subset = Type %in% c("2i", "a2i", "serum"))
+
+# Create the violin plot for the selected cell types
+VlnPlot(selected_cell_types, features = "ENSMUSG00000031311", group.by = "Type") +
+    ggtitle("Expression of Nono Across different Cell Types") +
+    theme_minimal() +
+    labs(y = "Expression Level", x = "Cell Type")
+
+```
+
+
+
+
+
+
+
+
+
+
 
 

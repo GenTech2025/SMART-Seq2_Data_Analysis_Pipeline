@@ -81,9 +81,19 @@ library(msigdb)
 
 library(Seurat)
 library(dplyr)
+library(scran)
+library(scater)
 ```
 
-### Create **SingleCellExperiment** objects and filter them based on QC metrics
+
+```{r}
+data("segList_ensemblGeneID", package = "scMerge")
+mSEG <- segList_ensemblGeneID$mouse$mouse_scSEG # Extracting SEGs identified in mouse by scRNA Seq
+```
+
+
+
+### Create **SingleCellExperiment** object for **development** data
 
 ```{r create_early_development_SCE, message=FALSE,warning=FALSE}
 # The counts matrix was created from the E4.5, E5.5, E6.5, E7.5 stages of mouse devlopment
@@ -95,9 +105,23 @@ dev_counts_ordered <- dev_counts[,dev_targets$id_rna]
 dev_sce_raw <- SingleCellExperiment(assays = list(counts = as.matrix(dev_counts_ordered)))
 # Add metadata to dev_sce_raw
 colData(dev_sce_raw) <- DataFrame(dev_targets[match(colnames(dev_sce_raw), dev_targets$id_rna), ])
+
 ```
 
 
+```{r calculate_QC_metrics_for_development_data, message=FALSE, warning=FALSE, eval=FALSE, include=FALSE}
+dev_is_spike <- grepl("^ERCC", rownames(dev_sce_raw))
+
+mitogenes <- "ENSMUSG00000064336|ENSMUSG00000064337|ENSMUSG00000064338|ENSMUSG00000064339|ENSMUSG00000064340|ENSMUSG00000064341|ENSMUSG00000064342|ENSMUSG00000064343|ENSMUSG00000064344|ENSMUSG00000064345|ENSMUSG00000064346|ENSMUSG00000064347|ENSMUSG00000064348|ENSMUSG00000064349|ENSMUSG00000064350|ENSMUSG00000064351|ENSMUSG00000064352|ENSMUSG00000064353|ENSMUSG00000064354|ENSMUSG00000064355|ENSMUSG00000064356|ENSMUSG00000064357|ENSMUSG00000064358|ENSMUSG00000064359|ENSMUSG00000064360|ENSMUSG00000064361|ENSMUSG00000065947|ENSMUSG00000064363|ENSMUSG00000064364|ENSMUSG00000064365|ENSMUSG00000064366|ENSMUSG00000064367|ENSMUSG00000064368|ENSMUSG00000064369|ENSMUSG00000064370|ENSMUSG00000064371|ENSMUSG00000064372"
+
+dev_is_mito <- grepl(mitogenes,rownames(dev_sce_raw))
+
+dev_sce_raw$qc_stats <- perCellQCMetrics(dev_sce_raw, subsets = list(ERCC=dev_is_spike, Mt=dev_is_mito))
+
+# NOT SURE IF IT WORKED OR NOT
+```
+
+### Create **SingleCellExperiment** object for **embryonic stem cell** data
 
 ```{r create_mouse_ESC_SCE, message=FALSE, warning=FALSE}
 # Read in the RDS file for class data
@@ -133,30 +157,91 @@ filtered_cells <- colnames(es_sce_fil)
 
 > **es_sce_fil** should be used for downstream analysis and **es_sce_fil_copy** has been created to keep a copy for other uses.
 
-```{r deconvolution_normalization_of_development_data, message=FALSE, warning=FALSE}
+### Deconvolution normalization of ESC data
+
+```{r compute_size_factors, message=FALSE, warning=FALSE}
+# Set seed for reproducibility
+set.seed(12345)
+
+# Perform deconvolution normalization
+clusters <- quickCluster(es_sce_fil, min.size=100)
+es_sce_fil <- computeSumFactors(es_sce_fil, clusters=clusters)
+
+# Normalize counts
+es_sce_fil <- logNormCounts(es_sce_fil)
 
 ```
 
 
 
+```{r perform_scaling, message=FALSE, warning=FALSE}
+# Identify highly variable genes (HVGs)
+dec <- modelGeneVar(es_sce_fil)
+top_hvgs <- getTopHVGs(dec, n=2000) # Adjust the number as necessary
+
+# Scale the data (optional step, scater::normalize() includes log transformation)
+# es_sce_fil <- scaleData(es_sce_fil, features=top_hvgs)
+
+```
+
+
+```{r validate_features, warning=FALSE, message=FALSE}
+valid_features <- mSEG[mSEG %in% rownames(es_sce_fil)]
+```
+
+
+```{r dimensionality_reduction, message=FALSE, warning=FALSE}
+es_sce_fil <- runPCA(es_sce_fil, subset_row=rownames(es_sce_fil))
+
+# Perform t-SNE
+es_sce_fil <- runTSNE(es_sce_fil, dimred="PCA")
+
+# Perform UMAP
+es_sce_fil <- runUMAP(es_sce_fil, dimred="PCA")
+```
+
+#### PLots for dimensionality reduction using all genes as features
+
+```{r}
+# PCA plot
+plotPCA(es_sce_fil, colour_by="Type")
+
+```
+
+```{r}
+# t-SNE plot
+plotTSNE(es_sce_fil, colour_by="Type")
+```
+
+```{r}
+# UMAP plot
+plotUMAP(es_sce_fil, colour_by="Type")
+```
+
+
+### Dimensionality reduction of subsetted SCE object with only mSEG features
+
+```{r}
+es_sce_fil_subset <- es_sce_fil[rownames(es_sce_fil) %in% mSEG, ]
+```
 
 
 
+```{r}
+# es_sce_fil_subset <- runPCA(es_sce_fil_subset, subset_row = rownames(es_sce_fil_subset))
+es_sce_fil_subset <- runPCA(es_sce_fil_subset)
+# Perform t-SNE
+es_sce_fil_subset <- runTSNE(es_sce_fil_subset, dimred="PCA")
+
+# Perform UMAP
+es_sce_fil_subset <- runUMAP(es_sce_fil_subset, dimred="PCA")
+```
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+```{r}
+plotPCA(es_sce_fil_subset, colour_by="Type")
+```
 
 
 
