@@ -1,0 +1,477 @@
+---
+title: "ranked-gene-stability"
+author: "S2599932"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project Overview: Gene Stability and Enrichment Analysis in Single-Cell RNA Sequencing Data
+
+This project aims to compare gene stability and enrichment between different single-cell RNA sequencing (scRNA-seq) datasets. Specifically, we will:
+1. Identify the top 1000 stable genes in two scRNA-seq datasets.
+2. Compare the rank changes of these genes between the datasets.
+3. Use rank changes as input for enrichment analysis using the `fgsea` package.
+4. Validate the methodology by fitting models to different embryonic stem cell (ES) datasets and comparing enrichment results.
+
+### Data Sources
+
+- **ES Study Data (E-MTAB-2600):** Used in the Functional Genomics and Transcriptomics (FGT) class.
+- **Early Development Data (GSE121708):** Counts table from stages E4.5, E5.5, E6.5, E7.5, sequenced with scNMT-seq from Argelaguet et al., Nature 2019.
+
+### Methodology
+
+1. **Fit the scSEGIndex Model:**
+   - Apply the scSEGIndex model to the ES dataset (E-MTAB-2600) and the early development dataset (GSE121708) to identify the top 1000 stable genes.
+
+2. **Rank Change Comparison:**
+   - Compare the ranks of the top 1000 stable genes between the two datasets.
+   - Rank the genes by the amount and direction of rank change.
+
+3. **Enrichment Analysis:**
+   - Use the ranked list of genes as input for `fgsea` (fast gene set enrichment analysis).
+   - Compare the results against the Molecular Signatures Database (MSigDB).
+   - Perform permutation tests to search for enrichment in the sorted list.
+
+4. **Validation with Different ES Cell Types:**
+   - Apply the scSEGIndex model to two different types of ES cells.
+   - Repeat the enrichment comparison to validate the methodology.
+
+### Data Files
+
+- **E-MTAB-2600 Dataset:** Available on `bioinfmsc6` in the `/shared_files/FGT_T9` folder.
+- **GSE121708 Dataset:** Counts data from GSE121708 record.
+
+### Next Steps
+
+1. **Data Preprocessing:**
+   - Load and preprocess the scRNA-seq data from the specified sources.
+
+2. **Model Fitting:**
+   - Fit the scSEGIndex model to both datasets to identify the top 1000 stable genes.
+
+3. **Rank Change Analysis:**
+   - Compute and compare the rank changes of the top 1000 stable genes between the datasets.
+
+4. **Enrichment Analysis:**
+   - Perform `fgsea` on the ranked list of genes and compare results to MSigDB.
+   - Conduct permutation tests to assess enrichment.
+
+5. **Validation:**
+   - Apply the methodology to different ES cell types and compare enrichment results.
+
+6. **Results Interpretation:**
+   - Analyze and interpret the results of the enrichment analysis.
+   - Prepare the data for further analysis using David.
+
+This project demonstrates a proof-of-concept for comparing gene stability and enrichment between scRNA-seq datasets. The methodology will be further refined and organized for production use.
+
+
+
+```{r load_libraries, message=FALSE,warning=FALSE}
+library(SingleCellExperiment)
+library(scMerge)
+library(ExperimentHub)
+library(GSEABase)
+library(fgsea)
+library(msigdb)
+
+library(biomaRt)
+library(Seurat)
+library(dplyr)
+library(scran)
+library(scater)
+```
+
+
+```{r}
+data("segList_ensemblGeneID", package = "scMerge")
+mSEG <- segList_ensemblGeneID$mouse$mouse_scSEG # Extracting SEGs identified in mouse by scRNA Seq
+```
+
+
+
+### Create **SingleCellExperiment** object for **development** data
+
+```{r create_early_development_SCE, message=FALSE,warning=FALSE}
+# The counts matrix was created from the E4.5, E5.5, E6.5, E7.5 stages of mouse devlopment
+dev_counts <- read.table("../dissertation-prolouge/TestData/counts.txt",sep="\t",header=T,row.names=1)
+dev_targets <- read.table("../dissertation-prolouge/TestData/sample_metadata.txt", header=1, sep = "\t")
+dev_counts_ordered <- dev_counts[,dev_targets$id_rna]
+
+# Create the SCE object
+dev_sce_raw <- SingleCellExperiment(assays = list(counts = as.matrix(dev_counts_ordered)))
+# Add metadata to dev_sce_raw
+colData(dev_sce_raw) <- DataFrame(dev_targets[match(colnames(dev_sce_raw), dev_targets$id_rna), ])
+
+```
+
+
+```{r calculate_QC_metrics_for_development_data, message=FALSE, warning=FALSE, eval=FALSE, include=FALSE}
+dev_is_spike <- grepl("^ERCC", rownames(dev_sce_raw))
+
+mitogenes <- "ENSMUSG00000064336|ENSMUSG00000064337|ENSMUSG00000064338|ENSMUSG00000064339|ENSMUSG00000064340|ENSMUSG00000064341|ENSMUSG00000064342|ENSMUSG00000064343|ENSMUSG00000064344|ENSMUSG00000064345|ENSMUSG00000064346|ENSMUSG00000064347|ENSMUSG00000064348|ENSMUSG00000064349|ENSMUSG00000064350|ENSMUSG00000064351|ENSMUSG00000064352|ENSMUSG00000064353|ENSMUSG00000064354|ENSMUSG00000064355|ENSMUSG00000064356|ENSMUSG00000064357|ENSMUSG00000064358|ENSMUSG00000064359|ENSMUSG00000064360|ENSMUSG00000064361|ENSMUSG00000065947|ENSMUSG00000064363|ENSMUSG00000064364|ENSMUSG00000064365|ENSMUSG00000064366|ENSMUSG00000064367|ENSMUSG00000064368|ENSMUSG00000064369|ENSMUSG00000064370|ENSMUSG00000064371|ENSMUSG00000064372"
+
+dev_is_mito <- grepl(mitogenes,rownames(dev_sce_raw))
+
+dev_sce_raw$qc_stats <- perCellQCMetrics(dev_sce_raw, subsets = list(ERCC=dev_is_spike, Mt=dev_is_mito))
+
+# NOT SURE IF IT WORKED OR NOT
+```
+
+### Create **SingleCellExperiment** object for **embryonic stem cell** data
+
+```{r create_mouse_ESC_SCE, message=FALSE, warning=FALSE}
+# Read in the RDS file for class data
+es_raw <- readRDS("../dissertation-prolouge/Data/Class_Data/single_es_tximport.rds")
+es_targets <- read.table("../dissertation-prolouge/Data/Class_Data/E-MTAB-2600.targets.txt", sep = "\t", header = TRUE, row.names = "ERR")
+
+# Create the ESC SCE object
+es_sce <- SingleCellExperiment(assays=list(counts = es_raw$counts, abundance = es_raw$abundance))
+colData(es_sce) <- DataFrame(es_targets[match(colnames(es_sce), rownames(es_targets)), ]) # Add metadata
+
+
+# Calculate QC metrics
+is_spike <- grepl("^ERCC",rownames(es_sce))
+mitogenes <- "ENSMUSG00000064336|ENSMUSG00000064337|ENSMUSG00000064338|ENSMUSG00000064339|ENSMUSG00000064340|ENSMUSG00000064341|ENSMUSG00000064342|ENSMUSG00000064343|ENSMUSG00000064344|ENSMUSG00000064345|ENSMUSG00000064346|ENSMUSG00000064347|ENSMUSG00000064348|ENSMUSG00000064349|ENSMUSG00000064350|ENSMUSG00000064351|ENSMUSG00000064352|ENSMUSG00000064353|ENSMUSG00000064354|ENSMUSG00000064355|ENSMUSG00000064356|ENSMUSG00000064357|ENSMUSG00000064358|ENSMUSG00000064359|ENSMUSG00000064360|ENSMUSG00000064361|ENSMUSG00000065947|ENSMUSG00000064363|ENSMUSG00000064364|ENSMUSG00000064365|ENSMUSG00000064366|ENSMUSG00000064367|ENSMUSG00000064368|ENSMUSG00000064369|ENSMUSG00000064370|ENSMUSG00000064371|ENSMUSG00000064372"
+is_mito <- grepl(mitogenes, rownames(es_sce))
+es_sce$qc_stats <- perCellQCMetrics(es_sce, subsets=list(ERCC=is_spike, Mt=is_mito))
+
+# Calculating the filtering metrics
+libsize_drop <- isOutlier(es_sce$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop <- isOutlier(es_sce$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop <- isOutlier(es_sce$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+spike_drop <- isOutlier(es_sce$qc_stats$subsets_ERCC_percent, nmads = 3, type = "higher")
+ 
+es_sce_copy <- es_sce # Save a non filtered copy
+
+# Filtering the SingleCellExperiment(SCE) object
+es_sce_fil <- es_sce[,!(libsize_drop|feature_drop|mito_drop|spike_drop)]
+es_sce_fil_copy <- es_sce_fil # Save a filtered copy
+
+# Save the filtered cells
+filtered_cells <- colnames(es_sce_fil)
+```
+
+> **es_sce_fil** should be used for downstream analysis and **es_sce_fil_copy** has been created to keep a copy for other uses.
+
+### Deconvolution normalization of ESC data
+
+```{r compute_size_factors, message=FALSE, warning=FALSE}
+# Set seed for reproducibility
+set.seed(12345)
+
+# Perform deconvolution normalization
+clusters <- quickCluster(es_sce_fil, min.size=100)
+es_sce_fil <- computeSumFactors(es_sce_fil, clusters=clusters)
+
+# Normalize counts
+es_sce_fil <- logNormCounts(es_sce_fil)
+
+```
+
+
+
+```{r perform_scaling, message=FALSE, warning=FALSE}
+# Identify highly variable genes (HVGs)
+dec <- modelGeneVar(es_sce_fil)
+top_hvgs <- getTopHVGs(dec, n=2000) # Adjust the number as necessary
+
+# Scale the data (optional step, scater::normalize() includes log transformation)
+# es_sce_fil <- scaleData(es_sce_fil, features=top_hvgs)
+
+```
+
+
+
+```{r validate_features, warning=FALSE, message=FALSE}
+valid_features <- mSEG[mSEG %in% rownames(es_sce_fil)]
+```
+
+
+
+```{r dimensionality_reduction, message=FALSE, warning=FALSE}
+es_sce_fil <- runPCA(es_sce_fil, subset_row = rownames(es_sce_fil))
+
+# Perform t-SNE
+es_sce_fil <- runTSNE(es_sce_fil, dimred="PCA")
+
+# Perform UMAP
+es_sce_fil <- runUMAP(es_sce_fil, dimred="PCA")
+```
+
+#### PLots for dimensionality reduction using all genes as features
+
+```{r}
+# PCA plot
+plotPCA(es_sce_fil, colour_by="Type")
+
+```
+
+```{r}
+# t-SNE plot
+plotTSNE(es_sce_fil, colour_by="Type")
+```
+
+```{r}
+# UMAP plot
+plotUMAP(es_sce_fil, colour_by="Type")
+```
+
+
+### Dimensionality reduction of subsetted SCE object with only mSEG features
+
+```{r}
+es_sce_fil_subset <- es_sce_fil[rownames(es_sce_fil) %in% mSEG, ]
+```
+
+
+
+```{r}
+# es_sce_fil_subset <- runPCA(es_sce_fil_subset, subset_row = rownames(es_sce_fil_subset))
+es_sce_fil_subset <- runPCA(es_sce_fil_subset)
+# Perform t-SNE
+es_sce_fil_subset <- runTSNE(es_sce_fil_subset, dimred="PCA")
+
+# Perform UMAP
+es_sce_fil_subset <- runUMAP(es_sce_fil_subset, dimred="PCA")
+```
+
+
+
+```{r}
+plotPCA(es_sce_fil_subset, colour_by="Type")
+```
+
+
+
+```{r}
+# Extract PCA results
+pca_results <- reducedDim(es_sce_fil_subset, "PCA")
+
+# Extract loadings for PCA components
+pca_loadings <- attr(pca_results, "rotation")
+
+# Get the loadings for PCA2
+pca2_loadings <- pca_loadings[, 2]
+
+# Sort the genes by their PCA2 loadings
+sorted_genes <- sort(pca2_loadings, decreasing = TRUE)
+
+# Top 10 genes contributing to PCA2
+top_genes_PC2 <- head(sorted_genes, 10)
+
+# Display the top genes
+print(top_genes_PC2)
+```
+
+
+```{r}
+# Map the ensemblIDs to gene names using biomaRt
+ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+ensembl_ids <- decon_pca_load_df$ensemblID
+
+gene_mapping <- getBM(
+  attributes = c("ensembl_gene_id", "external_gene_name"),
+  filters = "ensembl_gene_id",
+  values = ensembl_ids,
+  mart = ensembl
+)
+# Rename the columns for consistency
+colnames(gene_mapping) <- c("ensemblID", "gene_name")
+```
+
+
+
+```{r}
+# Extract PCA results
+pca_results <- reducedDim(es_sce_fil_subset, "PCA")
+
+# Extract loadings for PCA components
+pca_loadings <- attr(pca_results, "rotation")
+
+# Get the loadings for PCA2
+pca2_loadings <- pca_loadings[, 2]
+
+# Create a dataframe with ensemblID and PC2 values
+decon_pca_load_df <- data.frame(ensemblID = rownames(pca_loadings), PC2 = pca2_loadings)
+
+# Sort the dataframe by PC2 values in descending order
+decon_pca_load_df <- decon_pca_load_df[order(decon_pca_load_df$PC2, decreasing = TRUE), ]
+
+# Map the ensemblIDs to gene names using biomaRt
+ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+ensembl_ids <- decon_pca_load_df$ensemblID
+
+gene_mapping <- getBM(
+  attributes = c("ensembl_gene_id", "external_gene_name"),
+  filters = "ensembl_gene_id",
+  values = ensembl_ids,
+  mart = ensembl
+)
+
+# Rename the columns for consistency
+colnames(gene_mapping) <- c("ensemblID", "gene_name")
+
+# Merge the PCA loadings with gene names
+final_df <- merge(decon_pca_load_df, gene_mapping, by = "ensemblID")
+
+# Rearrange the columns
+final_df <- final_df[, c("ensemblID", "gene_name", "PC2")]
+
+# Extract the top 10 rows with the highest PC2 values
+top_10_genes_df <- head(final_df, 10)
+
+# Extract the gene names
+top_10_gene_names <- top_10_genes_df$gene_name
+```
+
+
+
+```{r}
+# Extract PCA results
+pca_results <- reducedDim(es_sce_fil_subset, "PCA")
+
+# Extract loadings for PCA components
+pca_loadings <- attr(pca_results, "rotation")
+
+# Get the loadings for PCA1 and PCA2
+pca1_loadings <- pca_loadings[, 1]
+pca2_loadings <- pca_loadings[, 2]
+
+# Create a dataframe with ensemblID, PC1, and PC2 values
+decon_pca_load_df <- data.frame(ensemblID = rownames(pca_loadings), PC1 = pca1_loadings, PC2 = pca2_loadings)
+
+# Sort the dataframe by PC1 values in descending order and get top 10
+top_10_genes_PC1_df <- decon_pca_load_df[order(decon_pca_load_df$PC1, decreasing = TRUE), ][1:10, ]
+
+# Sort the dataframe by PC2 values in descending order and get top 10
+top_10_genes_PC2_df <- decon_pca_load_df[order(decon_pca_load_df$PC2, decreasing = TRUE), ][1:10, ]
+
+# Combine the top 10 genes for PC1 and PC2
+top_genes_df <- unique(rbind(top_10_genes_PC1_df, top_10_genes_PC2_df))
+
+# Map the ensemblIDs to gene names using biomaRt
+ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+ensembl_ids <- top_genes_df$ensemblID
+
+gene_mapping <- getBM(
+  attributes = c("ensembl_gene_id", "external_gene_name"),
+  filters = "ensembl_gene_id",
+  values = ensembl_ids,
+  mart = ensembl
+)
+
+# Rename the columns for consistency
+colnames(gene_mapping) <- c("ensemblID", "gene_name")
+
+# Merge the PCA loadings with gene names
+final_df <- merge(top_genes_df, gene_mapping, by = "ensemblID")
+
+# Rearrange the columns
+final_df <- final_df[, c("ensemblID", "gene_name", "PC1", "PC2")]
+
+# Display the final dataframe
+print(final_df)
+
+# Extract the gene names for top 10 PC1 and top 10 PC2
+top_10_gene_names_PC1 <- final_df[order(final_df$PC1, decreasing = TRUE), ]$gene_name[1:10]
+top_10_gene_names_PC2 <- final_df[order(final_df$PC2, decreasing = TRUE), ]$gene_name[1:10]
+
+# Display the top 10 gene names for PC1 and PC2
+print("Top 10 genes for PC1:")
+print(top_10_gene_names_PC1)
+print("Top 10 genes for PC2:")
+print(top_10_gene_names_PC2)
+```
+
+
+```{r}
+write.csv(final_df, file = "./SCE_annotated_df_pca_loading_SEG.csv", row.names = FALSE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
