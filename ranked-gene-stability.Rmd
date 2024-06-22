@@ -79,6 +79,7 @@ library(GSEABase)
 library(fgsea)
 library(msigdb)
 
+library(biomaRt)
 library(Seurat)
 library(dplyr)
 library(scran)
@@ -185,13 +186,15 @@ top_hvgs <- getTopHVGs(dec, n=2000) # Adjust the number as necessary
 ```
 
 
+
 ```{r validate_features, warning=FALSE, message=FALSE}
 valid_features <- mSEG[mSEG %in% rownames(es_sce_fil)]
 ```
 
 
+
 ```{r dimensionality_reduction, message=FALSE, warning=FALSE}
-es_sce_fil <- runPCA(es_sce_fil, subset_row=rownames(es_sce_fil))
+es_sce_fil <- runPCA(es_sce_fil, subset_row = rownames(es_sce_fil))
 
 # Perform t-SNE
 es_sce_fil <- runTSNE(es_sce_fil, dimred="PCA")
@@ -245,16 +248,150 @@ plotPCA(es_sce_fil_subset, colour_by="Type")
 
 
 
+```{r}
+# Extract PCA results
+pca_results <- reducedDim(es_sce_fil_subset, "PCA")
+
+# Extract loadings for PCA components
+pca_loadings <- attr(pca_results, "rotation")
+
+# Get the loadings for PCA2
+pca2_loadings <- pca_loadings[, 2]
+
+# Sort the genes by their PCA2 loadings
+sorted_genes <- sort(pca2_loadings, decreasing = TRUE)
+
+# Top 10 genes contributing to PCA2
+top_genes_PC2 <- head(sorted_genes, 10)
+
+# Display the top genes
+print(top_genes_PC2)
+```
+
+
+```{r}
+# Map the ensemblIDs to gene names using biomaRt
+ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+ensembl_ids <- decon_pca_load_df$ensemblID
+
+gene_mapping <- getBM(
+  attributes = c("ensembl_gene_id", "external_gene_name"),
+  filters = "ensembl_gene_id",
+  values = ensembl_ids,
+  mart = ensembl
+)
+# Rename the columns for consistency
+colnames(gene_mapping) <- c("ensemblID", "gene_name")
+```
 
 
 
+```{r}
+# Extract PCA results
+pca_results <- reducedDim(es_sce_fil_subset, "PCA")
+
+# Extract loadings for PCA components
+pca_loadings <- attr(pca_results, "rotation")
+
+# Get the loadings for PCA2
+pca2_loadings <- pca_loadings[, 2]
+
+# Create a dataframe with ensemblID and PC2 values
+decon_pca_load_df <- data.frame(ensemblID = rownames(pca_loadings), PC2 = pca2_loadings)
+
+# Sort the dataframe by PC2 values in descending order
+decon_pca_load_df <- decon_pca_load_df[order(decon_pca_load_df$PC2, decreasing = TRUE), ]
+
+# Map the ensemblIDs to gene names using biomaRt
+ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+ensembl_ids <- decon_pca_load_df$ensemblID
+
+gene_mapping <- getBM(
+  attributes = c("ensembl_gene_id", "external_gene_name"),
+  filters = "ensembl_gene_id",
+  values = ensembl_ids,
+  mart = ensembl
+)
+
+# Rename the columns for consistency
+colnames(gene_mapping) <- c("ensemblID", "gene_name")
+
+# Merge the PCA loadings with gene names
+final_df <- merge(decon_pca_load_df, gene_mapping, by = "ensemblID")
+
+# Rearrange the columns
+final_df <- final_df[, c("ensemblID", "gene_name", "PC2")]
+
+# Extract the top 10 rows with the highest PC2 values
+top_10_genes_df <- head(final_df, 10)
+
+# Extract the gene names
+top_10_gene_names <- top_10_genes_df$gene_name
+```
 
 
 
+```{r}
+# Extract PCA results
+pca_results <- reducedDim(es_sce_fil_subset, "PCA")
+
+# Extract loadings for PCA components
+pca_loadings <- attr(pca_results, "rotation")
+
+# Get the loadings for PCA1 and PCA2
+pca1_loadings <- pca_loadings[, 1]
+pca2_loadings <- pca_loadings[, 2]
+
+# Create a dataframe with ensemblID, PC1, and PC2 values
+decon_pca_load_df <- data.frame(ensemblID = rownames(pca_loadings), PC1 = pca1_loadings, PC2 = pca2_loadings)
+
+# Sort the dataframe by PC1 values in descending order and get top 10
+top_10_genes_PC1_df <- decon_pca_load_df[order(decon_pca_load_df$PC1, decreasing = TRUE), ][1:10, ]
+
+# Sort the dataframe by PC2 values in descending order and get top 10
+top_10_genes_PC2_df <- decon_pca_load_df[order(decon_pca_load_df$PC2, decreasing = TRUE), ][1:10, ]
+
+# Combine the top 10 genes for PC1 and PC2
+top_genes_df <- unique(rbind(top_10_genes_PC1_df, top_10_genes_PC2_df))
+
+# Map the ensemblIDs to gene names using biomaRt
+ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+ensembl_ids <- top_genes_df$ensemblID
+
+gene_mapping <- getBM(
+  attributes = c("ensembl_gene_id", "external_gene_name"),
+  filters = "ensembl_gene_id",
+  values = ensembl_ids,
+  mart = ensembl
+)
+
+# Rename the columns for consistency
+colnames(gene_mapping) <- c("ensemblID", "gene_name")
+
+# Merge the PCA loadings with gene names
+final_df <- merge(top_genes_df, gene_mapping, by = "ensemblID")
+
+# Rearrange the columns
+final_df <- final_df[, c("ensemblID", "gene_name", "PC1", "PC2")]
+
+# Display the final dataframe
+print(final_df)
+
+# Extract the gene names for top 10 PC1 and top 10 PC2
+top_10_gene_names_PC1 <- final_df[order(final_df$PC1, decreasing = TRUE), ]$gene_name[1:10]
+top_10_gene_names_PC2 <- final_df[order(final_df$PC2, decreasing = TRUE), ]$gene_name[1:10]
+
+# Display the top 10 gene names for PC1 and PC2
+print("Top 10 genes for PC1:")
+print(top_10_gene_names_PC1)
+print("Top 10 genes for PC2:")
+print(top_10_gene_names_PC2)
+```
 
 
-
-
+```{r}
+write.csv(final_df, file = "./SCE_annotated_df_pca_loading_SEG.csv", row.names = FALSE)
+```
 
 
 

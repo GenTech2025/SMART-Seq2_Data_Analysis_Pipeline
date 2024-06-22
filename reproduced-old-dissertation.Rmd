@@ -640,45 +640,171 @@ print(DimPlot(so_seg_all, reduction = "pca", group.by = "seurat_clusters") +
 
 
 
-```{r message=FALSE, warning=FALSE}
-# Extract the expression data for the gene of interest
-gene_expression_data <- FetchData(so_raw_copy, vars = c("ENSMUSG00000031311", "Type"))
-
-# Create the violin plot
-v1<- VlnPlot(so_raw_copy, features = "ENSMUSG00000031311", group.by = "Type") +
-      ggtitle("Expression of ENSMUSG00000031311 Across Cell Types") +
-      theme_minimal() +
-      labs(y = "Expression Level", x = "Cell Type")
-
-```
-
-
-
-```{r}
-print(v1)
-```
-
-
-
 ```{r nono_expression_across_different_cells, fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
 # Subset the Seurat object to include only the desired cell types
 selected_cell_types <- subset(so_raw_copy, subset = Type %in% c("2i", "a2i", "serum"))
 
-# Create the violin plot for the selected cell types
-VlnPlot(selected_cell_types, features = "ENSMUSG00000031311", group.by = "Type") +
-    ggtitle("Expression of Nono Across different Cell Types") +
-    theme_minimal() +
-    labs(y = "Expression Level", x = "Cell Type")
+# Create the violin plot for the selected cell types with enhanced aesthetics
+p <- VlnPlot(selected_cell_types, features = "ENSMUSG00000031311", group.by = "Type", 
+             pt.size = 0.1) +
+    ggtitle("Expression of Nono Across Different Cell Types") +
+    theme_minimal(base_size = 15) +
+    labs(y = "Expression Level", x = "Cell Type") +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        legend.position = "right",
+        panel.grid.major = element_line(color = "grey80")
+    ) +
+    scale_fill_manual(values = c("2i" = "#E69F00", "a2i" = "#56B4E9", "serum" = "#009E73"))
 
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/violin_plot_nono_expression.tiff", width = 12, height = 8, units = "in", res = 300)
+print(p)
+dev.off()
+```
+
+```{r}
+print(p)
+```
+
+
+Let's interpret the violin plot step by step:
+
+### Title and Axes
+
+1. **Title**: "Expression of Nono Across different Cell Types"
+   - This tells us that the plot is showing the expression levels of the gene Nono in different cell types.
+
+2. **Y-axis**: "Expression Level"
+   - The y-axis represents the level of gene expression. Higher values indicate higher expression levels.
+
+3. **X-axis**: "Cell Type"
+   - The x-axis represents different cell types: "2i", "a2i", and "serum".
+
+### Violin Plots
+
+Each violin plot represents the distribution of Nono gene expression levels within each cell type.
+
+1. **2i (Red)**
+   - The distribution is wide and mostly concentrated between expression levels 1 and 3.
+   - The shape indicates that most cells have expression levels around 2, with fewer cells at the extremes (near 0 and 3).
+
+2. **a2i (Green)**
+   - The distribution is narrower compared to the 2i cell type.
+   - It shows a peak around an expression level of 1, suggesting that most cells have lower expression levels.
+   - There are still some cells with higher expression levels, but these are less common.
+
+3. **Serum (Blue)**
+   - This distribution is similar in width to the 2i cell type but with more concentration towards lower expression levels.
+   - The expression levels are spread out between 0 and 3, with a higher density around levels 1 and 2.
+
+### Interpretation
+
+1. **Comparison of Expression Levels Across Cell Types**:
+   - The 2i cell type has a broader distribution of Nono expression levels, suggesting more variability within this cell type.
+   - The a2i cell type shows lower and more consistent expression levels, indicating less variability.
+   - The serum cell type has a moderate spread with a slight skew towards lower expression levels compared to the 2i cell type.
+
+2. **Density and Distribution**:
+   - The density of points inside each violin indicates the concentration of cells at specific expression levels. 
+   - In the 2i and serum cell types, the expression levels are more spread out, whereas in the a2i cell type, they are more tightly grouped.
+
+### Summary
+
+- **2i cells** have a broad range of Nono expression, indicating high variability.
+- **a2i cells** tend to have lower and more uniform Nono expression.
+- **Serum cells** show moderate variability with a tendency towards lower expression levels compared to 2i cells.
+
+This visualization effectively demonstrates the differences in Nono gene expression across these three cell types, highlighting both the central tendency and the spread of expression levels within each cell type.
+
+
+
+
+```{r nono_dot_plot}
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/nono_dot_plot.tiff", width = 12, height = 8, units = "in", res = 300)
+DotPlot(selected_cell_types, features = "ENSMUSG00000031311", group.by = "Type") +
+    ggtitle("Dot Plot of ENSMUSG00000031311 Across Selected Cell Types") +
+    theme_minimal() +
+    labs(y = "Cell Type", x = "Expression Level")
+dev.off()
 ```
 
 
 
+```{r fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+# Ensure that only the specific cell types are included
+selected_cell_types <- subset(so_raw_copy, subset = Type %in% c("2i", "a2i", "serum"))
+
+# Extract the expression data for the gene of interest and the cell type information
+gene_expression_data <- FetchData(selected_cell_types, vars = c("ENSMUSG00000031311", "Type"))
+
+# Filter out any unwanted cell types explicitly (if necessary)
+gene_expression_data <- gene_expression_data[gene_expression_data$Type %in% c("2i", "a2i", "serum"), ]
+
+# Create a box plot with enhanced aesthetics
+b0 <- ggplot(gene_expression_data, aes(x = Type, y = ENSMUSG00000031311, fill = Type)) +
+        geom_boxplot(outlier.color = "black", outlier.shape = 16, outlier.size = 2, notch = FALSE) +
+        stat_summary(fun.y = mean, geom = "point", shape = 20, size = 3, color = "white", fill = "white") +
+        scale_fill_manual(values = c("2i" = "#E69F00", "a2i" = "#56B4E9", "serum" = "#009E73")) +
+        labs(title = "Expression of Nono Across Cell Types",
+             x = "Cell Type",
+             y = "Expression Level",
+             fill = "Cell Type") +
+        theme_minimal(base_size = 15) +
+        theme(
+            plot.title = element_text(hjust = 0.5, face = "bold"),
+            axis.title.x = element_text(face = "bold"),
+            axis.title.y = element_text(face = "bold"),
+            legend.position = "right"
+        ) +
+        theme(panel.grid.major = element_line(color = "grey80"))
+
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/nono_box_plot.tiff", width = 12, height = 8, units = "in", res = 300)
+print(b0)
+dev.off()
+```
+
+```{r}
+print(b0)
+```
+
+
+```{r fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+# Create the enhanced box plot
+b1 <-  ggplot(gene_expression_data, aes(x = Type, y = ENSMUSG00000031311, fill = Type)) +
+      geom_violin(trim = FALSE, alpha = 0.6, color = "black") + # Add violin plot for density representation
+      geom_boxplot(width = 0.1, outlier.color = "black", outlier.shape = 16, outlier.size = 1.5, notch = FALSE, color = "black", alpha = 0.7) + # Overlay box plot
+      stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "red", fill = "white") + # Add mean points
+      scale_fill_manual(values = c("2i" = "#E69F00", "a2i" = "#56B4E9", "serum" = "#009E73")) + # Custom colors
+      labs(
+          title = "Expression of Nono Across Cell Types",
+          x = "Cell Type",
+          y = "Expression Level",
+          fill = "Cell Type"
+      ) +
+      theme_minimal(base_size = 15) +
+      theme(
+          plot.title = element_text(hjust = 0.5, face = "bold"),
+          axis.title.x = element_text(face = "bold"),
+          axis.title.y = element_text(face = "bold"),
+          legend.position = "right",
+          panel.grid.major = element_line(color = "grey80")
+      ) +
+      theme(
+          axis.text.x = element_text(angle = 45, hjust = 1) # Rotate x-axis labels for better readability
+      )
+
+tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/nono_box_violin_plot.tiff", width = 12, height = 8, units = "in", res = 300)
+print(b1)
+dev.off()
+```
 
 
 
-
-
+```{r fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+print(b1)
+```
 
 
 
