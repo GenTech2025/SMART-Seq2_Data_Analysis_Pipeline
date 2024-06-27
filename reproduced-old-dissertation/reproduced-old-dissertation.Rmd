@@ -176,6 +176,13 @@ so_raw <- AddMetaData(so_raw, metadata = es_targets)
 
 
 
+```{r copying_raw_seurat_object, message=FALSE, warning=FALSE}
+# Save a copy of the raw seurat object
+so_raw_copy <- so_raw
+```
+
+
+
 ```{r subset_SO_to_include_only_cells_that_passed_qc, message=FALSE, warning=FALSE}
 so_raw_fil <- so_raw[,filtered_cells]
 ```
@@ -187,6 +194,61 @@ so_norm_fil <- NormalizeData(so_raw_fil, verbose = FALSE)
 so_norm_fil <- ScaleData(so_norm_fil, verbose = FALSE)
 so_norm_fil <- FindVariableFeatures(so_norm_fil, selection.method = "vst", verbose = FALSE)
 ```
+
+### PCA with all genes as features with no explicit feature defination
+
+```{r copying_normalized_seurat_object, message=FALSE, warning=FALSE}
+so_norm_fil_all_genes <- so_norm_fil # this object will be used for PCA using all genes as features
+```
+
+
+```{r pca_using_seurat_object_containing_all_genes_no_explicit_feature_defination, message=FALSE, warning=FALSE}
+so_norm_fil_all_genes <- RunPCA(so_norm_fil_all_genes, features = rownames(so_norm_fil_all_genes), verbose = FALSE) # PCA using all genes as features without any explicit feature defination
+
+no_feature_all_genes <- DimPlot(so_norm_fil_all_genes, reduction = "pca", group.by = "Type") +
+                        ggtitle("All genes as features") +
+                        theme_minimal() +
+                        scale_color_viridis_d()
+```
+
+
+```{r fig.height= 14, fig.width= 14}
+print(no_feature_all_genes)
+```
+
+
+```{r}
+no_features_all_genes_load <- Loadings(so_norm_fil_all_genes)
+```
+
+
+### PCA with all genes in the seurat object and mSEGs defined as features.
+
+
+```{r}
+so_norm_fil_mseg <- so_norm_fil # this object will be used for PCA using only mouse stably expressed genes as features
+```
+
+
+```{r}
+so_norm_fil_mseg <- subset(so_norm_fil_mseg, features = mSEG)
+```
+
+
+
+```{r pca_using_seurat_object_containing_all_genes_no_explicit_feature_defination, message=FALSE, warning=FALSE}
+# so_norm_fil_mseg <- subset(so_norm_fil_mseg, features = mSEG)
+so_norm_fil_mseg <- RunPCA(so_norm_fil_mseg, verbose = FALSE)
+```
+
+
+```{r fig.height=14, fig.width=14, message=FALSE,warning=FALSE}
+DimPlot(so_norm_fil_mseg, reduction = "pca", group.by = "Type") +
+      ggtitle("All genes as features") +
+      theme_minimal() +
+      scale_color_viridis_d()
+```
+
 
 
 ### Now the pipeline diverges into two branche - 1) Using seurat normalization and 2) Using deconvolution normalization.
