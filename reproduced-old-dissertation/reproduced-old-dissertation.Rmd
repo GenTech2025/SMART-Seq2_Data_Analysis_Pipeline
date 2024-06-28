@@ -41,9 +41,9 @@ coefficient_of_variation <- function(x){
 
 
 ```{r read_data, message=FALSE, warning=FALSE}
-es_targets <- read.table("/home/s2599932/dissertation-prolouge/Data/Class_Data/E-MTAB-2600.targets.txt", sep = "\t", header = TRUE, row.names = "ERR") # Metadata
+es_targets <- read.table("/home/s2599932/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt", sep = "\t", header = TRUE, row.names = "ERR") # Metadata
 
-es_raw <- readRDS("/home/s2599932/dissertation-prolouge/Data/Class_Data/single_es_tximport.rds") # Counts data
+es_raw <- readRDS("/home/s2599932/mouse-dataset/E-MTAB-2600/single_es_tximport.rds") # Counts data
 ```
 
 
@@ -174,20 +174,15 @@ so_raw <- CreateSeuratObject(counts = es_counts)
 so_raw <- AddMetaData(so_raw, metadata = es_targets)
 ```
 
-
-
 ```{r copying_raw_seurat_object, message=FALSE, warning=FALSE}
 # Save a copy of the raw seurat object
 so_raw_copy <- so_raw
 ```
 
-
-
 ```{r subset_SO_to_include_only_cells_that_passed_qc, message=FALSE, warning=FALSE}
 so_raw_fil <- so_raw[,filtered_cells]
+so_raw_fil_copy <- so_raw_fil
 ```
-
-
 
 ```{r normalize_and_find_variable_features, message=FALSE, warning=FALSE}
 so_norm_fil <- NormalizeData(so_raw_fil, verbose = FALSE)
@@ -195,58 +190,242 @@ so_norm_fil <- ScaleData(so_norm_fil, verbose = FALSE)
 so_norm_fil <- FindVariableFeatures(so_norm_fil, selection.method = "vst", verbose = FALSE)
 ```
 
+
 ### PCA with all genes as features with no explicit feature defination
 
 ```{r copying_normalized_seurat_object, message=FALSE, warning=FALSE}
-so_norm_fil_all_genes <- so_norm_fil # this object will be used for PCA using all genes as features
+so_norm_fil_non_subseted <- so_norm_fil # this object will be used for PCA using all genes as features
 ```
 
 
 ```{r pca_using_seurat_object_containing_all_genes_no_explicit_feature_defination, message=FALSE, warning=FALSE}
-so_norm_fil_all_genes <- RunPCA(so_norm_fil_all_genes, features = rownames(so_norm_fil_all_genes), verbose = FALSE) # PCA using all genes as features without any explicit feature defination
-
-no_feature_all_genes <- DimPlot(so_norm_fil_all_genes, reduction = "pca", group.by = "Type") +
-                        ggtitle("All genes as features") +
-                        theme_minimal() +
-                        scale_color_viridis_d()
+so_norm_fil_non_subseted <- RunPCA(so_norm_fil_non_subseted, verbose = FALSE) # PCA using all genes as features with no explicit feature definition
 ```
 
 
 ```{r fig.height= 14, fig.width= 14}
-print(no_feature_all_genes)
+# Generate the plot with enhancements
+no_feature_defined_non_subseted <- DimPlot(so_norm_fil_non_subseted, reduction = "pca", group.by = "Type") +
+    ggtitle("Seurat Normalized + Not Subsetted + No Explicit Feature Definition") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "D", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+# Print the plot
+print(no_feature_defined_non_subseted)
 ```
 
 
 ```{r}
-no_features_all_genes_load <- Loadings(so_norm_fil_all_genes)
+so_non_subseted_load <- Loadings(so_norm_fil_non_subseted)
+```
+
+> Identify and annotate the cell outliers in the no_feature_defined_non_subsetedPCA plot
+
+```{r label_the_outlying_points, fig.height=14, fig.width=14}
+# Extract PCA embeddings to identify outliers
+pca_embeddings <- Embeddings(so_norm_fil_non_subseted, reduction = "pca")
+
+# Manually identify outliers based on PCA coordinates (you can adjust the criteria as needed)
+# For example, let's consider cells with PC_1 > 40 as outliers
+outliers <- rownames(pca_embeddings[pca_embeddings[, 1] > 10, ])
+
+# Generate the plot with enhancements and label outliers
+no_feature_defined_non_subseted <- DimPlot(so_norm_fil_non_subseted, reduction = "pca", group.by = "Type") +
+    ggtitle("Seurat Normalized + Not Subsetted + No Explicit Feature Definition") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "D", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+# Add labels to outliers
+no_feature_defined_non_subseted <- LabelPoints(plot = no_feature_defined_non_subseted, points = outliers, repel = TRUE)
+
+# Print the plot
+print(no_feature_defined_non_subseted)
 ```
 
 
-### PCA with all genes in the seurat object and mSEGs defined as features.
+### PCA of non subseted seurat object with explicit feature defination (all genes as features)
+
+
+```{r copying_normalized_seurat_object, message=FALSE, warning=FALSE}
+so_norm_fil_non_subseted_features <- so_norm_fil
+```
+
+
+```{r pca_using_seurat_object_containing_all_genes_explicit_feature_defination, message=FALSE, warning=FALSE}
+so_norm_fil_non_subseted_features <- RunPCA(so_norm_fil_non_subseted_features, features = rownames(so_norm_fil_non_subseted_features), verbose = FALSE) # PCA using all genes as features with explicit feature definition
+```
+
+
+```{r fig.height= 14, fig.width= 14}
+# Generate the plot with enhancements
+feature_defined_non_subseted <- DimPlot(so_norm_fil_non_subseted_features, reduction = "pca", group.by = "Type") +
+    ggtitle("Seurat Normalized + Not Subsetted + Explicit Feature Definition (all genes)") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "D", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))
+
+# Print the plot
+print(feature_defined_non_subseted)
+```
 
 
 ```{r}
-so_norm_fil_mseg <- so_norm_fil # this object will be used for PCA using only mouse stably expressed genes as features
+so_non_subseted_feature_load <- Loadings(so_norm_fil_non_subseted)
+so_non_subseted_feature_embeddings <- Embeddings(so_norm_fil_non_subseted)
 ```
+
+
+```{r fig.height=14, fig.width=14}
+# Generate the second PCA plot with the same outliers labeled
+feature_defined_non_subseted <- DimPlot(so_norm_fil_non_subseted_features, reduction = "pca", group.by = "Type") +
+    ggtitle("Seurat Normalized + Not Subsetted + Explicit Feature Definition (all genes)") +
+    theme_minimal(base_size = 15) +
+    scale_color_viridis_d(option = "D", end = 0.9) +
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+        axis.title.x = element_text(size = 15),
+        axis.title.y = element_text(size = 15),
+        axis.text = element_text(size = 12),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 12)
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))
+
+feature_defined_non_subseted <- LabelPoints(plot = feature_defined_non_subseted, points = outliers, repel = TRUE)
+
+print(feature_defined_non_subseted)
+```
+
+
+
+### PCA with non-subseted seurat object with explicit feature defination (mSEGs as features)
 
 
 ```{r}
-so_norm_fil_mseg <- subset(so_norm_fil_mseg, features = mSEG)
+so_norm_fil_non_subseted_seg <- so_norm_fil
+```
+
+```{r, warning=FALSE, message=FALSE}
+so_norm_fil_non_subseted_seg <- RunPCA(so_norm_fil_non_subseted_seg,features = mSEG, verbose = FALSE)
+```
+
+```{r fig.height=14, fig.width=14}
+# Generate the plot with enhancements
+seg_feature_defined_non_subseted <- DimPlot(so_norm_fil_non_subseted_seg, reduction = "pca", group.by = "Type") +
+    ggtitle("Seurat Normalized + Not Subsetted + Explicit Feature Definition (mSEGs)") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "D", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+seg_feature_defined_non_subseted <- LabelPoints(plot = seg_feature_defined_non_subseted, points = outliers, repel = TRUE)
+# Print the plot
+print(seg_feature_defined_non_subseted)
 ```
 
 
 
-```{r pca_using_seurat_object_containing_all_genes_no_explicit_feature_defination, message=FALSE, warning=FALSE}
-# so_norm_fil_mseg <- subset(so_norm_fil_mseg, features = mSEG)
-so_norm_fil_mseg <- RunPCA(so_norm_fil_mseg, verbose = FALSE)
+### PCA with subseted seurat object (subseted by mSEGs) with explicit feature defination (mSEGs as features)
+
+```{r}
+so_norm_fil_subseted_seg <- subset(so_norm_fil, features = mSEG)
+```
+
+```{r, warning=FALSE, message=FALSE}
+so_norm_fil_subseted_seg <- RunPCA(so_norm_fil_subseted_seg,features = mSEG, verbose = FALSE)
+```
+
+```{r fig.height=14, fig.width=14}
+# Generate the plot with enhancements
+seg_feature_defined_subseted <- DimPlot(so_norm_fil_subseted_seg, reduction = "pca", group.by = "Type") +
+    ggtitle("Seurat Normalized + Subsetted (by mSEGs) + Explicit Feature Definition (mSEGs)") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "D", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+seg_feature_defined_subseted <- LabelPoints(plot = seg_feature_defined_subseted, points = outliers, repel = TRUE)
+
+# Print the plot
+print(seg_feature_defined_subseted)
 ```
 
 
-```{r fig.height=14, fig.width=14, message=FALSE,warning=FALSE}
-DimPlot(so_norm_fil_mseg, reduction = "pca", group.by = "Type") +
-      ggtitle("All genes as features") +
-      theme_minimal() +
-      scale_color_viridis_d()
+### PCA with subseted seurat object (subseted by mSEGs) with no explicit feature defination
+
+```{r}
+so_norm_fil_subseted <- subset(so_norm_fil,features = mSEG)
+```
+
+```{r, warning=FALSE, message=FALSE}
+so_norm_fil_subseted <- RunPCA(so_norm_fil_subseted, verbose = FALSE)
+```
+
+```{r fig.height=14, fig.width=14}
+# Generate the plot with enhancements
+feature_not_defined_subseted <- DimPlot(so_norm_fil_subseted, reduction = "pca", group.by = "Type") +
+    ggtitle("Seurat Normalized + Subsetted (by mSEGs) + No Explicit Feature Definition") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "D", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+feature_not_defined_subseted <- LabelPoints(plot = feature_not_defined_subseted, points = outliers, repel = TRUE)
+
+# Print the plot
+print(feature_not_defined_subseted)
+```
+
+```{r}
+feature_not_defined_subseted_load <- Loadings(so_norm_fil_subseted)
+feature_not_defined_subseted_embed <- Embeddings(so_norm_fil_subseted)
 ```
 
 
