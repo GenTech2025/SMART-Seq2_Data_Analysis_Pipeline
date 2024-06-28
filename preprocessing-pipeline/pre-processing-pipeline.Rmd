@@ -12,84 +12,58 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## This pipeline is to preprocess single cell RNA sequencing data generated using SMART-Seq 2 protocol
 
+## Initial quality control using **FastQC**
 
 ```{bash}
-pwd
-```
-
-> Run the fastqc on two files
-
-```{bash}
-# Run fastqc on all the different samples
-
 for file in /home/s2599932/human-dataset/GSE36552_ENA_RAW/*.fastq
 do
   fastqc -o /home/s2599932/human-dataset/GSE36552_ENA_RAW/fastqc-results "$file"
 done
 ```
 
-
 ```{bash}
 # Run multiqc to collate all the results
-
-# mkdir /home/s2599932/human-dataset/GSE36552_ENA_RAW/fastqc-results/multiqc-results
-
 multiqc -o /home/s2599932/human-dataset/GSE36552_ENA_RAW/fastqc-results/multiqc-results /home/s2599932/human-dataset/GSE36552_ENA_RAW/fastqc-results/.
 ```
 
-> Need to understand the different parameters of trimmomatic
+### Use **trimmomatic** to trim low quality reads
 
 ```{bash}
-# Use trimmomatic to remove the low quality sequences
-
 # Sample 1
 java -jar ~/bin/Trimmomatic-0.39/trimmomatic-0.39.jar SE -phred33 /home/s2599932/human-dataset/GSE36552_ENA_RAW/SRR491070.fastq /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/SRR491070_trimmed.fastq LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:36
-
-
 ```
 
 ```{bash}
+# Sample 2
 java -jar ~/bin/Trimmomatic-0.39/trimmomatic-0.39.jar SE -phred33 /home/s2599932/human-dataset/GSE36552_ENA_RAW/SRR490970.fastq /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/SRR490970_trimmed.fastq LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:36
 ```
 
+### Run **FastQC** on the trimmed fastq files
 
 ```{bash}
-# Run fastqc on the trimmed fastq files
 for file in /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/*.fastq
 do
   fastqc -o /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/trimmed-fastqc-results/ "$file"
 done
 ```
 
-
-## Read Alignment using STAR
+### Run **MultiQC** to collate all the results
 
 ```{bash}
-# Create a reference index (only once)
+multiqc -o /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/trimmed-fastqc-results/trimmed-multiqc /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/trimmed-fastqc-results.
+```
 
-# mkdir -p /home/s2599932/pre-processing/alignment/fasta
+### Use **STAR** to align the reads to reference genome
+
+```{bash}
+# Create the reference genome after downloading the human genome fasta file and annotation .gtf file
 STAR --runThreadN 10 \
      --runMode genomeGenerate \
      --genomeDir /home/s2599932/pre-processing/alignment/ref \
      --genomeFastaFiles /home/s2599932/pre-processing/alignment/fasta/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa \
      --sjdbGTFfile /home/s2599932/pre-processing/alignment/fasta/Homo_sapiens.GRCh38.112.gtf \
      --sjdbOverhang 99
-
-
 ```
-
-
-```{bash}
-# Align the reads
-mkdir -p /path/to/alignment/output
-STAR --runThreadN 12 \
-     --genomeDir /home/s2599932/pre-processing/alignment/ref \
-     --readFilesIn /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/SRR490970_trimmed.fastq \
-     --outFileNamePrefix /path/to/alignment/output/SRR490970_ \
-     --outSAMtype BAM SortedByCoordinate
-
-```
-
 
 ```{bash}
 # Define input and output directories
@@ -115,10 +89,9 @@ do
 done
 ```
 
-
+### Check the quality of alignment using **samtools**
 
 ```{bash}
-
 # Define the output directory where BAM files are located
 output_dir="/home/s2599932/pre-processing/alignment/mapped"
 
@@ -136,9 +109,7 @@ do
 done
 ```
 
-
-
-### Use featureCounts to quantify the gene expression
+### Use **featureCounts** to quantify the aligned reads
 
 > Will generate individual counts file for each bam file
 
@@ -168,9 +139,7 @@ do
 done
 ```
 
-
 > Will generate a single compiled counts file, thats what we need!!
-
 
 ```{bash}
 # Define directories and annotation file
@@ -195,7 +164,7 @@ featureCounts -T 12 \
 ```
 
 
-
+### The all_sample_featureCounts.txt must have the count data for every sample along with some additional columns that has to dropped in the downstream analysis.
 
 
 

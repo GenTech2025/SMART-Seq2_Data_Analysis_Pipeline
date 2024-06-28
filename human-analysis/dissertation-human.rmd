@@ -44,6 +44,15 @@ dataset_two <- read.table("../data/data/E-MTAB-3929/counts.txt", row.names = 1)
 ```
 
 
+
+```{r}
+d1_targets <- read.csv("./GSE36552_targets_file.csv", sep = ",", header = TRUE)
+
+d1_targets <- DataFrame(d1_targets)
+```
+
+
+
 ```{r}
 data("segList_ensemblGeneID", package = "scMerge")
 hSEG <- segList_ensemblGeneID$human$human_scSEG
@@ -92,7 +101,8 @@ colData(sce) <- DataFrame(cell_metadata)
 
 ```{r}
 d1_sce <- SingleCellExperiment(assays = list(counts = as.matrix(dataset_one)))
-d2_sce <- SingleCellExperiment(assays = list(counts = as.matrix(dataset_two)))
+colData(d1_sce) <- d1_targets
+# d2_sce <- SingleCellExperiment(assays = list(counts = as.matrix(dataset_two)))
 ```
 
 
@@ -178,8 +188,8 @@ if (is_subset) {
 d1_sce <- runPCA(d1_sce, subset_row = intersect(hSEG_names, rownames(d1_sce)))
 ```
 
-```{r}
-plotPCA(d1_sce)
+```{r fig.height=14, fig.width=14}
+plotPCA(d1_sce, colour_by = "Cell_Type")
 ```
 
 
