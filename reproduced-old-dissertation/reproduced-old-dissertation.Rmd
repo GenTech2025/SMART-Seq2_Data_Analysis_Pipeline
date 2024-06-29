@@ -186,8 +186,10 @@ so_raw_fil_copy <- so_raw_fil
 
 ```{r normalize_and_find_variable_features, message=FALSE, warning=FALSE}
 so_norm_fil <- NormalizeData(so_raw_fil, verbose = FALSE)
-so_norm_fil <- ScaleData(so_norm_fil, verbose = FALSE)
+
 so_norm_fil <- FindVariableFeatures(so_norm_fil, selection.method = "vst", verbose = FALSE)
+
+so_norm_fil <- ScaleData(so_norm_fil,features = rownames(so_norm_fil), verbose = FALSE) # Adding or removing the features variable does not change anything but this might change after since now the variable features line of code is before it - according to the documentation if findvariablefeatures() is before the scaledata() line and no features are defined in the scaledata() then the scaledata() code will only use the identified variable features.
 ```
 
 

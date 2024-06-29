@@ -21,7 +21,7 @@ library(tidyverse)
 
 ```{r}
 
-geo_id <- "GSE36552"
+geo_id <- "GSE121708"
 gset <- getGEO(geo_id, GSEMatrix = TRUE)
 
 ```
