@@ -135,7 +135,7 @@ filtered_cells <- colnames(sce_fil)
 ```
 
 
-### Seurat object workflow
+## Seurat object workflow
 
 > we should explicitly define that the scaling has to be performed by using all.genes as features.
 
@@ -154,9 +154,9 @@ seurat_object_raw <- seurat_object_raw[,filtered_cells] # Only keep the cells th
 > Normalize the data and identify variable features
 
 ```{r}
-seurat_object_norm <- NormalizeData(seurat_object_raw, normalization.method = "LogNormalize", scale.factor = 10000, verbose = FALSE) # Three options are available for normalization - LogNormalize, CenteredLogRatioTransformation, RelativeCounts
+seurat_object_norm <- NormalizeData(seurat_object_raw, verbose = FALSE) # Three options are available for normalization - LogNormalize, CenteredLogRatioTransformation, RelativeCounts
 
-seurat_object_norm <- FindVariableFeatures(seurat_object_norm, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+seurat_object_norm <- FindVariableFeatures(seurat_object_norm, selection.method = "vst", verbose = FALSE)
 
 # Need to identify top ten variable features
 
@@ -192,8 +192,6 @@ loadings <- Loadings(seurat_object_norm, reduction = "pca")
 embeddings <- Embeddings(seurat_object_norm, reduction = "pca")
 ```
 
-
-
 ```{r fig.height=14,fig.width=14}
 # Generate the plot with enhancements
 feature_defined_non_subseted <- DimPlot(seurat_object_norm, reduction = "pca", group.by = "stage") +
@@ -213,6 +211,425 @@ feature_defined_non_subseted <- DimPlot(seurat_object_norm, reduction = "pca", g
 # Print the plot
 print(feature_defined_non_subseted)
 ```
+
+
+
+```{r}
+seurat_object_norm_copy <- RunPCA(object = seurat_object_norm_copy, verbose = FALSE)
+```
+
+```{r fig.height=14,fig.width=14}
+# Generate the plot with enhancements
+feature_not_defined_non_subseted <- DimPlot(seurat_object_norm_copy, reduction = "pca", group.by = "stage") +
+    ggtitle("Seurat Normalized + Not Subsetted + No Explicit Feature Definition - GSE121708") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "H", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))
+
+# Print the plot
+print(feature_not_defined_non_subseted)
+```
+
+
+
+```{r}
+seurat_object_norm_copy_subset <- subset(seurat_object_norm_copy, features = mSEG)
+
+seurat_object_norm_copy_subset <- RunPCA(seurat_object_norm_copy_subset,features = mSEG, verbose = FALSE)
+```
+
+
+```{r fig.height=14,fig.width=14}
+# Generate the plot with enhancements
+feature_not_defined_subseted <- DimPlot(seurat_object_norm_copy_subset, reduction = "pca", group.by = "stage") +
+    ggtitle("Seurat Normalized + Subsetted + Explicit Feature Definition (mSEG) - GSE121708") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "H", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))
+
+# Print the plot
+print(feature_not_defined_subseted)
+```
+
+
+
+
+### Continue with seurat workflow
+
+```{r fig.height=8, fig.width=8}
+# Determine significant PCs
+seurat_object_norm <- JackStraw(seurat_object_norm, num.replicate = 100)
+seurat_object_norm <- ScoreJackStraw(seurat_object_norm, dims = 1:20)
+JackStrawPlot(seurat_object_norm, dims = 1:15)
+```
+
+
+
+```{r fig.height=8, fig.width=8}
+JackStrawPlot(seurat_object_norm, dims = 1:15)
+```
+
+
+
+```{r fig.height=8, fig.width=8}
+ElbowPlot(seurat_object_norm)
+```
+
+
+```{r}
+# Find neighbors and clusters
+seurat_object_norm <- FindNeighbors(seurat_object_norm, dims = 1:10)
+seurat_object_norm <- FindClusters(seurat_object_norm, resolution = 0.5)
+
+# Visualize clusters
+DimPlot(seurat_object_norm, reduction = "umap")
+```
+
+
+```{r}
+# Run UMAP
+seurat_object_norm <- RunUMAP(seurat_object_norm, dims = 1:10)
+
+# Run tSNE
+seurat_object_norm <- RunTSNE(seurat_object_norm, dims = 1:10)
+```
+
+
+```{r fig.height=8, fig.width=8}
+# Visualize UMAP
+DimPlot(seurat_object_norm, reduction = "umap")
+```
+
+
+```{r fig.height=8, fig.width=8}
+# Visualize tSNE
+DimPlot(seurat_object_norm, reduction = "tsne")
+```
+
+
+```{r fig.height=8, fig.width=8}
+# Identify markers for each cluster
+cluster_markers <- FindAllMarkers(seurat_object_norm, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+
+# Visualize top markers
+top10 <- cluster_markers %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+```
+
+
+```{r fig.height=18, fig.width=18}
+
+DoHeatmap(seurat_object_norm, features = top10$gene) + NoLegend()
+```
+
+
+
+```{r}
+# Annotate clusters based on known markers
+new_cluster_ids <- c("Type1", "Type2", "Type3")
+names(new_cluster_ids) <- levels(seurat_object_norm)
+seurat_object_norm <- RenameIdents(seurat_object_norm, new_cluster_ids)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## SingleCellExperiment object workflow
+
+### deconvolution normalization
+
+
+```{r}
+clusters <- quickCluster(sce_fil_copy)
+sce_fil_copy <- computeSumFactors(sce_fil_copy, clusters = clusters)
+sce_fil_copy <- logNormCounts(sce_fil_copy)
+```
+
+> https://ucsbcarpentry.github.io/R-markdown/01-why/index.html
+
+### Alternatively we can perform deconvolution normalization using the approach mentioned on this web page [link](https://ucsbcarpentry.github.io/R-markdown/01-why/index.html) 
+
+
+```{r}
+library(scater)
+library(scran)
+library(sctransform)
+library(tidyverse)
+library(BiocParallel)
+library(patchwork)
+bpp <- MulticoreParam(7)
+```
+
+
+
+```{r}
+set.seed(100)
+clust <- quickCluster(sce, BPPARAM=bpp)
+table(clust)
+```
+
+
+
+```{r}
+sce <- computePooledFactors(sce,
+             clusters = clust,
+             min.mean = 0.1,
+             BPPARAM = bpp)
+deconv.sf <- sizeFactors(sce)
+summary(deconv.sf)
+```
+
+
+
+```{r}
+lib.sf <- librarySizeFactors(sce)
+data.frame(LibrarySizeFactors = lib.sf, 
+           DeconvolutionSizeFactors = deconv.sf,
+                 SampleGroup = sce$SampleGroup) %>%
+  ggplot(aes(x=LibrarySizeFactors, y=DeconvolutionSizeFactors)) +
+      geom_point(aes(col=SampleGroup)) +
+      geom_abline(slope = 1, intercept = 0)
+```
+
+
+
+```{r}
+sce <- logNormCounts(sce)
+assayNames(sce)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+### Continue with normal pipeline
+
+```{r}
+# Extract the normalized data from SCE object
+normalized_counts <- assay(sce_fil_copy, "logcounts")
+
+# Create the seurat object 
+so_decon_norm <- CreateSeuratObject(counts = normalized_counts)
+so_decon_norm <- AddMetaData(so_decon_norm, metadata = cleaned_target)
+
+# Add the normalized data to seurat object
+DefaultAssay(so_decon_norm) <- "RNA"
+so_decon_norm <- SetAssayData(so_decon_norm, layer = "data", new.data = normalized_counts)
+
+so_decon_norm <- so_decon_norm[,filtered_cells] # Only include cells that passed QC
+
+# Make a copy
+so_decon_norm_copy <- so_decon_norm
+```
+
+
+
+```{r}
+so_decon_norm <- FindVariableFeatures(so_decon_norm, selection.method = "vst", verbose = FALSE)
+
+so_decon_norm <- ScaleData(so_decon_norm,features = rownames(so_decon_norm), verbose = FALSE)
+```
+
+
+
+```{r}
+so_decon_norm <- RunPCA(object = so_decon_norm, features = rownames(so_decon_norm), verbose = FALSE)
+```
+
+
+
+```{r fig.height=14, fig.width=14}
+# Generate the plot with enhancements
+feature_defined_non_subseted_decon <- DimPlot(seurat_object_norm, reduction = "pca", group.by = "stage") +
+    ggtitle("Deconvolution Normalized + Not Subsetted + Explicit Feature Definition (all genes) - GSE121708") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "H", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))
+
+# Print the plot
+print(feature_defined_non_subseted_decon)
+```
+
+
+
+```{r}
+so_decon_norm_copy <- FindVariableFeatures(so_decon_norm_copy, selection.method = "vst", verbose = FALSE)
+
+so_decon_norm_copy <- ScaleData(so_decon_norm_copy,features = rownames(so_decon_norm_copy), verbose = FALSE)
+```
+
+```{r}
+so_decon_norm_copy <- RunPCA(object = so_decon_norm_copy, features = rownames(so_decon_norm_copy), verbose = FALSE)
+```
+
+
+```{r fig.height=14, fig.width=14}
+# Generate the plot with enhancements
+no_feature_defined_non_subseted_decon <- DimPlot(so_decon_norm_copy, reduction = "pca", group.by = "stage") +
+    ggtitle("Deconvolution Normalized + Not Subsetted + Explicit Feature Definition (all genes) - GSE121708") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "H", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))
+
+# Print the plot
+print(no_feature_defined_non_subseted_decon)
+```
+
+
+```{r}
+so_decon_norm_subset <- subset(so_decon_norm, features = mSEG)
+
+so_decon_norm_subset <- RunPCA(so_decon_norm_subset,features = mSEG, npcs = 30, verbose = FALSE)
+
+```
+
+
+
+```{r, fig.height=14, fig.width=14}
+# Generate the plot with enhancements
+no_feature_defined_subseted_decon <- DimPlot(so_decon_norm_subset, reduction = "pca", group.by = "stage") +
+    ggtitle("Deconvolution Normalized + Subsetted + Explicit Feature Definition (mSEG) - GSE121708") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_viridis_d(option = "H", end = 0.9) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))
+
+# Print the plot
+print(no_feature_defined_subseted_decon)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
