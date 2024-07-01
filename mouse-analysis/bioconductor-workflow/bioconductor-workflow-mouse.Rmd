@@ -1,0 +1,321 @@
+---
+title: "Bioconductor-workflow-mouse"
+author: "S2599932"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{fontspec}
+  - \setmainfont{Liberation Sans}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, eval = TRUE)
+```
+
+# This pipeline contains the complete seurat workflow and should be used to generate the PCA plots mentioned below
+ 1) **Deconvolution normalized + non subsetted + no features defined**
+ 2) **Deconvolution normalized + non subsetted + all genes as features**
+ 3) **Deconvolution normalized + non subsetted + mSEGs as features**
+ 4) **Deconvolution normalized + subsetted + no features defined**
+ 5) **Deconvolution normalized + subsetted + mSEGs as features**
+ 
+---
+ 
+### Defination of some of the terminologies used
+
+- **Deconvolution normalized**: 
+- **Non-subsetted**: A Seurat object which contains all the rownames (i.e., ensembl IDs) obtained from the counts matrix from which this object was created.
+- **Subsetted**: A Seurat object which contains only rownames that correspond to the mSEG list. This object was created using the **subset()** function with the features to use set as the mSEG list.
+- **No features defined**: While using Seurat's **RunPCA()** function, the *features* parameter was not used to explicitly define the features.
+- **Features defined**: While using Seurat's **RunPCA()** function, the *features* parameter was used to explicitly define features (i.e., either all genes or mSEG list).
+
+
+---
+
+#### Define filepaths paths
+
+```{r}
+data_directory <- "/home/s2599932/mouse-dataset/E-MTAB-2600/single_es_tximport.rds"
+annotation_directory <- "/home/s2599932/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt"
+output_files_directory <- "./"
+output_plots_directory <- "./"
+```
+
+#### Load libraries
+
+```{r load_libraries, message=FALSE, warning=FALSE}
+library(Seurat)
+library(scMerge)
+library(SingleCellExperiment)
+library(ggplot2)
+library(dplyr)
+library(biomaRt)
+library(corrplot)
+library(scater)
+library(scran)
+
+library(biomaRt)
+library(dplyr)
+library(knitr)
+```
+
+#### Load in data and annotation file
+
+```{r}
+annotation <- read.table(annotation_directory, sep = "\t", header = TRUE, row.names = "ERR")
+raw_data <- readRDS(data_directory)
+```
+
+
+```{r load_mSEGs, message=FALSE, warning=FALSE}
+data("segList_ensemblGeneID", package = "scMerge")
+mSEG <- segList_ensemblGeneID$mouse$mouse_scSEG # Extracting SEGs identified in mouse by scRNA Seq
+```
+
+#### Create SCE object
+
+```{r}
+sce_raw <- SingleCellExperiment(assays=list(counts = raw_data$counts, abundance = raw_data$abundance))
+```
+
+#### Quality control on the SCE object
+
+```{r}
+is_spike <- grepl("^ERCC", rownames(sce_raw))
+mitogenes <- "ENSMUSG00000064336|ENSMUSG00000064337|ENSMUSG00000064338|ENSMUSG00000064339|ENSMUSG00000064340|ENSMUSG00000064341|ENSMUSG00000064342|ENSMUSG00000064343|ENSMUSG00000064344|ENSMUSG00000064345|ENSMUSG00000064346|ENSMUSG00000064347|ENSMUSG00000064348|ENSMUSG00000064349|ENSMUSG00000064350|ENSMUSG00000064351|ENSMUSG00000064352|ENSMUSG00000064353|ENSMUSG00000064354|ENSMUSG00000064355|ENSMUSG00000064356|ENSMUSG00000064357|ENSMUSG00000064358|ENSMUSG00000064359|ENSMUSG00000064360|ENSMUSG00000064361|ENSMUSG00000065947|ENSMUSG00000064363|ENSMUSG00000064364|ENSMUSG00000064365|ENSMUSG00000064366|ENSMUSG00000064367|ENSMUSG00000064368|ENSMUSG00000064369|ENSMUSG00000064370|ENSMUSG00000064371|ENSMUSG00000064372"
+is_mito <- grepl(mitogenes, rownames(sce_raw))
+
+sce_raw$qc_stats <- perCellQCMetrics(sce_raw, subsets=list(ERCC=is_spike, Mt=is_mito))
+```
+
+> QC histograms have not been plotted
+
+```{r}
+# Calculating the filtering metrics
+libsize_drop <- isOutlier(sce_raw$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop <- isOutlier(sce_raw$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop <- isOutlier(sce_raw$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+spike_drop <- isOutlier(sce_raw$qc_stats$subsets_ERCC_percent, nmads = 3, type = "higher")
+
+sce_raw_copy <- sce_raw # Save a non-filtered copy
+
+# Filtering the SingleCellExperiment (SCE) object
+sce_raw_fil <- sce_raw[, !(libsize_drop | feature_drop | mito_drop | spike_drop)]
+sce_raw_fil_copy <- sce_raw_fil # Save a filtered copy
+
+# Save the filtered cells
+filtered_cells <- colnames(sce_raw_fil)
+```
+
+
+### Deconvolution Normalization and Downstream Analysis using seurat
+
+```{r deconvolution_normalization, message=FALSE, warning=FALSE}
+clusters <- quickCluster(sce_raw_fil_copy)
+sce_raw_fil_copy <- computeSumFactors(sce_raw_fil_copy, clusters = clusters)
+sce_raw_fil_copy <- logNormCounts(sce_raw_fil_copy)
+```
+
+#### Downstream seurat worflow
+
+```{r}
+normalized_counts <- assay(sce_raw_fil_copy, "logcounts")
+
+so_norm <- CreateSeuratObject(counts = normalized_counts)
+so_norm <- AddMetaData(so_norm, metadata = annotation)
+so_norm_copy <- so_norm
+
+# Add the normalized data to seurat object
+DefaultAssay(so_norm) <- "RNA"
+so_norm <- SetAssayData(so_norm, slot = "data", new.data = normalized_counts)
+```
+
+
+```{r}
+# Only include samples that passed QC
+so_norm_fil <- so_norm[,filtered_cells]
+so_norm_fil_copy <- so_norm_fil
+```
+
+
+```{r}
+so_norm_fil <- FindVariableFeatures(so_norm_fil, selection.method = "vst", verbose = FALSE)
+
+so_norm_fil <- ScaleData(so_norm_fil,features = rownames(so_norm_fil), verbose = FALSE)
+```
+
+---
+
+#### Now since we need to create five PCA plots, we are going to copy **so_norm_fil** to five different objects in order to avoid any confusion. 
+- non_subsetted_no_features_defined
+- non_subsetted_all_genes_as_features
+- non_subsetted_mSEGs_as_features
+- subsetted_no_features_defined
+- subsetted_mSEGs_as_features
+
+---
+
+#### Copy the seurat object to five different objects
+
+```{r copy_objects, message=FALSE, warning=FALSE, include=FALSE}
+non_subsetted_no_features_defined <- so_norm_fil
+non_subsetted_all_genes_as_features <- so_norm_fil
+non_subsetted_mSEGs_as_features <- so_norm_fil
+subsetted_no_features_defined <- so_norm_fil
+subsetted_mSEGs_as_features <- so_norm_fil
+```
+
+
+### Create the PCA plots
+
+```{r}
+custom_colors <- c(
+    "2i" = "#1f77b4",  # Blue
+    "2i_bulk" = "#ff7f0e",  # Orange
+    "a2i" = "#2ca02c",  # Green
+    "a2i_bulk" = "#d62728",  # Red
+    "serum" = "#9467bd",   # Purple
+    "serum_bulk" = "#f5c84e" # yellow
+)
+```
+
+
+
+#### 1) Seurat Normalized + Non Subsetted + No features defined
+
+
+```{r fig.height=10, fig.width=12, fig.align='center'}
+set.seed(181)
+
+non_subsetted_no_features_defined <- RunPCA(non_subsetted_no_features_defined, verbose = FALSE)
+
+p1 <- DimPlot(non_subsetted_no_features_defined, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Non Subsetted + No features defined (E-MTAB-2600)") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 15),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p1)
+```
+
+
+#### 2) Seurat Normalized + Non subsetted + All genes as features
+
+
+```{r fig.height=10, fig.width=12, fig.align='center'}
+set.seed(182)
+
+non_subsetted_all_genes_as_features <- RunPCA(object = non_subsetted_all_genes_as_features, features = rownames(non_subsetted_all_genes_as_features), verbose = FALSE)
+
+p2 <- DimPlot(non_subsetted_all_genes_as_features, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Non Subsetted + All genes as features (E-MTAB-2600)") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p2)
+```
+
+
+#### 3) Seurat Normalized + Non subsetted + mSEGs as features
+
+```{r fig.height=10, fig.width=12, fig.align='center'}
+set.seed(183)
+
+non_subsetted_mSEGs_as_features <- RunPCA(object = non_subsetted_mSEGs_as_features, features = mSEG, verbose = FALSE)
+
+p3 <- DimPlot(non_subsetted_mSEGs_as_features, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Non Subsetted + mSEGs as features (E-MTAB-2600)") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p3)
+```
+
+
+#### 4) Seurat Normalized + Subsetted + No features defined
+
+```{r fig.height=10, fig.width=12, fig.align='center'}
+set.seed(184)
+
+# First subset the seurat object
+subsetted_no_features_defined <- subset(subsetted_no_features_defined, features = mSEG)
+
+subsetted_no_features_defined <- RunPCA(object = subsetted_no_features_defined, verbose = FALSE)
+
+p4 <- DimPlot(subsetted_no_features_defined, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Subsetted + No features defined (E-MTAB-2600)") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p4)
+```
+
+
+#### 5) Seurat Normalized + Subsetted + mSEGs as features
+
+```{r fig.height=10, fig.width=12, fig.align='center'}
+set.seed(185)
+
+# First subset the seurat object
+subsetted_mSEGs_as_features <- subset(subsetted_mSEGs_as_features, features = mSEG)
+
+subsetted_mSEGs_as_features <- RunPCA(object = subsetted_mSEGs_as_features, features = mSEG, verbose = FALSE)
+
+p5 <- DimPlot(subsetted_mSEGs_as_features, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Subsetted + mSEGs as features (E-MTAB-2600)") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p5)
+```
