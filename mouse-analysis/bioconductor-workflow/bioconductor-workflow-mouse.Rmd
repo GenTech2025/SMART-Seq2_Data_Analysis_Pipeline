@@ -157,6 +157,15 @@ so_norm_fil <- ScaleData(so_norm_fil,features = rownames(so_norm_fil), verbose =
 
 ---
 
+#### Exclude the bulk samples
+
+```{r}
+conditions_of_interest <- c("2i", "a2i", "serum")
+cells_of_interest <- WhichCells(so_norm_fil, expression = Type %in% conditions_of_interest)
+
+so_norm_fil <- subset(so_norm_fil, cells = cells_of_interest)
+```
+
 #### Copy the seurat object to five different objects
 
 ```{r copy_objects, message=FALSE, warning=FALSE, include=FALSE}
@@ -182,7 +191,7 @@ custom_colors <- c(
 ```
 
 
-
+### PCA Plots
 #### 1) Seurat Normalized + Non Subsetted + No features defined
 
 
@@ -319,3 +328,170 @@ p5 <- DimPlot(subsetted_mSEGs_as_features, reduction = "pca", group.by = "Type")
 
 print(p5)
 ```
+
+### Now we need to replot after excluding the outlier 2i cells
+#### Read in the outliers
+```{r}
+outliers_df <- read.csv("/home/s2599932/MSc_DSB_Dissertation_2024/reproduced-old-dissertation/sample_outliers.csv", header = FALSE)
+outliers <- outliers_df$V1
+```
+
+#### 1) Plot 1 - Outlier excluded
+```{r fig.height=8,fig.width=10}
+set.seed(191)
+
+non_subsetted_no_features_defined <- subset(non_subsetted_no_features_defined, cells = setdiff(Cells(non_subsetted_no_features_defined), outliers))
+
+non_subsetted_no_features_defined <- RunPCA(non_subsetted_no_features_defined, verbose = FALSE)
+
+p1 <- DimPlot(non_subsetted_no_features_defined, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Non Subsetted + No features defined (E-MTAB-2600) + No 2i outliers") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 10)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p1)
+
+# Save the plot
+png("./deconvolution_normalized_outlier_excluded_plot1.png", width = 10, height = 8, units = "in", res = 400)
+print(p1)
+dev.off()
+```
+
+#### 2) Plot 2 - Outliers excluded
+```{r fig.height=8,fig.width=10}
+set.seed(192)
+
+non_subsetted_all_genes_as_features <- subset(non_subsetted_all_genes_as_features, cells = setdiff(Cells(non_subsetted_all_genes_as_features), outliers))
+
+non_subsetted_all_genes_as_features <- RunPCA(object = non_subsetted_all_genes_as_features, features = rownames(non_subsetted_all_genes_as_features), verbose = FALSE)
+
+p2 <- DimPlot(non_subsetted_all_genes_as_features, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Non Subsetted + All genes as features (E-MTAB-2600) + No 2i outliers") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p2)
+
+# Save the plot
+png("./deconvolution_normalized_outlier_excluded_plot2.png", width = 10, height = 8, units = "in", res = 400)
+print(p2)
+dev.off()
+```
+
+#### 3) Plot 3 - Outliers excluded
+```{r fig.height=8,fig.width=10}
+set.seed(193)
+
+non_subsetted_mSEGs_as_features <- subset(non_subsetted_mSEGs_as_features, cells = setdiff(Cells(non_subsetted_mSEGs_as_features), outliers))
+
+non_subsetted_mSEGs_as_features <- RunPCA(object = non_subsetted_mSEGs_as_features, features = mSEG, verbose = FALSE)
+
+p3 <- DimPlot(non_subsetted_mSEGs_as_features, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Non Subsetted + mSEGs as features (E-MTAB-2600) + No 2i Outliers") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 13, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p3)
+
+# Save the plot
+png("./deconvolution_normalized_outlier_excluded_plot3.png", width = 10, height = 8, units = "in", res = 400)
+print(p3)
+dev.off()
+```
+
+#### 4) Plot 4 - Outliers excluded
+```{r fig.height=8,fig.width=10}
+set.seed(194)
+
+subsetted_no_features_defined <- subset(subsetted_no_features_defined, cells = setdiff(Cells(subsetted_no_features_defined), outliers))
+
+subsetted_no_features_defined <- subset(subsetted_no_features_defined, features = mSEG)
+
+subsetted_no_features_defined <- RunPCA(object = subsetted_no_features_defined, verbose = FALSE)
+
+p4 <- DimPlot(subsetted_no_features_defined, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Subsetted + No features defined (E-MTAB-2600) + No 2i outliers") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p4)
+
+# Save the plot
+png("./deconvolution_normalized_outlier_excluded_plot4.png", width = 10, height = 8, units = "in", res = 400)
+print(p4)
+dev.off()
+```
+
+#### Plot 5 - Outliers Excluded
+```{r fig.height=8,fig.width=10}
+set.seed(195)
+
+subsetted_mSEGs_as_features <- subset(subsetted_mSEGs_as_features, cells = setdiff(Cells(subsetted_mSEGs_as_features), outliers))
+
+subsetted_mSEGs_as_features <- subset(subsetted_mSEGs_as_features, features = mSEG)
+
+subsetted_mSEGs_as_features <- RunPCA(object = subsetted_mSEGs_as_features, features = mSEG, verbose = FALSE)
+
+p5 <- DimPlot(subsetted_mSEGs_as_features, reduction = "pca", group.by = "Type") +
+    ggtitle("Deconvolution Normalized + Subsetted + mSEGs as features (E-MTAB-2600) + No 2i outliers") +
+    theme_minimal(base_size = 15) +  # Increase base font size for better readability
+    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 13, face = "bold"),  # Center and bold the title
+        axis.title.x = element_text(size = 15),  # Increase x-axis title size
+        axis.title.y = element_text(size = 15),  # Increase y-axis title size
+        axis.text = element_text(size = 12),  # Increase axis text size
+        legend.title = element_text(size = 12),  # Increase legend title size
+        legend.text = element_text(size = 12)  # Increase legend text size
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
+
+
+print(p5)
+
+# Save the plot
+png("./deconvolution_normalized_outlier_excluded_plot5.png", width = 10, height = 8, units = "in", res = 400)
+print(p5)
+dev.off()
+```
+

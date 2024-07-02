@@ -262,6 +262,10 @@ no_feature_defined_non_subseted <- LabelPoints(plot = no_feature_defined_non_sub
 print(no_feature_defined_non_subseted)
 ```
 
+```{r save_the_outliers_identified}
+write.table(outliers, file = "sample_outliers.csv", sep = ",", col.names = FALSE, row.names = FALSE, quote = FALSE)
+```
+
 
 ### PCA of non subseted seurat object with explicit feature defination (all genes as features)
 
