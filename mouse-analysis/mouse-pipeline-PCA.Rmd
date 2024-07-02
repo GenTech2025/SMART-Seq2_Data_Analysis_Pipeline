@@ -33,7 +33,8 @@ library(knitr)
 target <- read.table("/home/s2599932/mouse-dataset/GSE121708/sample_metadata.txt", sep = "\t", header = TRUE) # Metadata
 cleaned_target <- target[,c("id_rna","sample","stage","plate","embryo","lineage10x")]
 rownames(cleaned_target) <- cleaned_target$id_rna
-cleaned_target <- subset(cleaned_target, select = -1)
+cleaned_target <- su
+bset(cleaned_target, select = -1)
 
 
 raw <- read.table("/home/s2599932/mouse-dataset/GSE121708/counts.txt", header = TRUE, row.names = 1) # Counts data
