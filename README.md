@@ -16,4 +16,8 @@ This is the official repository for the dissertation.
 
 ## Started the ranked SEG pipeline - Yet to finish it (01-07-24)
 
-## Removed the outlying cells and re-plot the PCA plot (02-07-24) 
+## Removed the outlying cells and re-plot the PCA plot (02-07-24)
+
+## Changed the server from bioinfmsc6 to bioinfmsc9 (03-07-24)
+
+ 
