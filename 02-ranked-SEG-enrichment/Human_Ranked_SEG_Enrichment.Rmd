@@ -15,10 +15,10 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, eval = FALS
 
 ### Define File Paths
 ```{r}
-dataset_one_dir <- "/home/s2599932/mouse-dataset/E-MTAB-2600/single_es_tximport.rds" # E-MTAB-2600
-dataset_two_dir <- "/home/s2599932/mouse-dataset/GSE121708/counts.txt" # GSE121708
-dataset_one_annotation_dir <- "/home/s2599932/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt"
-dataset_two_annotation_dir <- "/home/s2599932/mouse-dataset/GSE121708/sample_metadata.txt"
+dataset_one_dir <- "/home/s2599932/study-datasets/mouse-dataset/E-MTAB-2600/single_es_tximport.rds" # E-MTAB-2600
+dataset_two_dir <- "/home/s2599932/study-datasets/mouse-dataset/GSE121708/counts.txt" # GSE121708
+dataset_one_annotation_dir <- "/home/s2599932/study-datasets/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt"
+dataset_two_annotation_dir <- "/home/s2599932/study-datasets/mouse-dataset/GSE121708/sample_metadata.txt"
 ```
 ### Load Libraries
 ```{r}
@@ -143,11 +143,11 @@ sce_two_fil <- logNormCounts(sce_two_fil)
 #### Misellaneous steps - (No idea why it was done)
 ```{r fig.height=8,fig.width=10}
 # Compute column sums from the raw counts
-colsums <- colSums(assay(sce_two_fil, "counts")) # Needs to be calculated from the same SCE object
+colsums <- colSums(assay(sce_one_fil, "counts")) # Needs to be calculated from the same SCE object
 hist(colsums, breaks = 40)
 
 # Verify the length of colsums matches the number of columns in the assay
-length(colsums) == ncol(sce_two_fil)
+length(colsums) == ncol(sce_one_fil)
 ```
 
 ```{r fig.height=8,fig.width=10}
@@ -155,7 +155,68 @@ sce_two_norm_counts <- logcounts(sce_two_fil)[,colsums>100000]
 hist(colSums(sce_two_norm_counts))
 ```
 
+```{r fig.height=8,fig.width=10}
+sce_one_norm_counts <- logcounts(sce_one_fil)[,colsums>100000]
+hist(colSums(sce_one_norm_counts))
+```
+
+
 ```{r NOT_RUN_YET}
+# Left an annotation step
+```
+
+#### Identify stably expressed genes in both the datasets/cell types
+```{r}
+param = BiocParallel::MulticoreParam(workers = 6, progressbar = TRUE)
+sce_one_SEG <- scSEGIndex(sce_one_norm_counts, cell_type = colData(sce_one_fil)$Type , BPPARAM = param)
+```
+
+```{r}
+param = BiocParallel::MulticoreParam(workers = 6, progressbar = TRUE)
+sce_two_SEG <- scSEGIndex(sce_two_norm_counts, cell_type = colData(sce_two_fil)$stage , BPPARAM = param)
+```
+
+#### Save the identified SEGs
+```{r}
+write.csv(sce_one_SEG, file = "./sce_one_SEG_EMTAB2600.csv", row.names = TRUE)
+write.csv(sce_two_SEG, file = "./sce_two_SEG_GSE121708.csv", row.names = TRUE)
+```
+
+#### Check the columns
+```{r}
+colnames(sce_one_SEG)
+```
+```{r}
+colnames(sce_two_SEG)
+```
+
+#### Sort the dataframes in descending order of sgIdx
+```{r}
+sce_one_SEG <- sce_one_SEG %>% arrange(desc(segIdx))
+sce_two_SEG <- sce_two_SEG %>% arrange(desc(segIdx))
+```
+
+#### Extract the top 1000 SEGs from both datasets
+```{r}
+# Extract the from the first dataset
+sce_one_top_1000 <- head(sce_one_SEG, 1000)
+sce_one_top_1000_genes <- rownames(sce_one_top_1000)
+
+# Extract from the second dataset
+sce_two_top_1000 <- head(sce_two_SEG, 1000)
+sce_two_top_1000_genes <- rownames(sce_two_top_1000)
+```
+
+### CODE STILL IN EXPERIMENTAL PHASE
+#### Add ranks to the dataframes
+```{r}
+# Is it really necessary? It is basically the position of the gene in the df
+sce_one_top_1000$rank_one <- rank(-1 * sce_one_top_1000$segIdx, ties.method = "average")
+sce_two_top_1000$rank_two <- rank(-1 * sce_two_top_1000$segIdx, ties.method = "average")
+```
+
+#### Calculate the Rank Difference
+```{r}
 
 ```
 
