@@ -28,15 +28,44 @@ multiqc -o /home/s2599932/human-dataset/GSE36552_ENA_RAW/fastqc-results/multiqc-
 
 ### Use **trimmomatic** to trim low quality reads
 
+#### For single end data
 ```{bash}
-# Sample 1
-java -jar ~/bin/Trimmomatic-0.39/trimmomatic-0.39.jar SE -phred33 /home/s2599932/human-dataset/GSE36552_ENA_RAW/SRR491070.fastq /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/SRR491070_trimmed.fastq LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:36
+#!/bin/bash
+
+# Define input and output directories
+INPUT_DIR="/scratch1/s2599932/GSE36552/fastq-files"
+OUTPUT_DIR="/scratch1/s2599932/GSE36552/fastq-files/trimmed-reads"
+
+# Define the path to Trimmomatic if not in the PATH
+TRIMMOMATIC_PATH="/home/s2599932/Trimmomatic-0.39/trimmomatic-0.39.jar"
+
+# Define the number of cores to use
+NUM_CORES=10
+
+# Create output directory if it does not exist
+mkdir -p $OUTPUT_DIR
+
+# Function to run Trimmomatic
+run_trimmomatic() {
+    fastq_file=$1
+    base_name=$(basename $fastq_file .fastq)
+    output_file="$OUTPUT_DIR/${base_name}_trimmed.fastq"
+    
+    java -jar $TRIMMOMATIC_PATH SE -phred33 $fastq_file $output_file CROP:50
+    
+    echo "Trimmed $fastq_file and saved to $output_file"
+}
+
+export -f run_trimmomatic
+export TRIMMOMATIC_PATH
+export OUTPUT_DIR
+
+# Find all FASTQ files and process them in parallel
+find $INPUT_DIR -name "*.fastq" | parallel -j $NUM_CORES run_trimmomatic {}
+
+echo "Trimming complete for all files."
 ```
 
-```{bash}
-# Sample 2
-java -jar ~/bin/Trimmomatic-0.39/trimmomatic-0.39.jar SE -phred33 /home/s2599932/human-dataset/GSE36552_ENA_RAW/SRR490970.fastq /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/SRR490970_trimmed.fastq LEADING:20 TRAILING:20 SLIDINGWINDOW:4:20 MINLEN:36
-```
 
 ### Run **FastQC** on the trimmed fastq files
 
@@ -57,11 +86,11 @@ multiqc -o /home/s2599932/human-dataset/GSE36552_ENA_RAW/trimmed-fastq/trimmed-f
 
 ```{bash}
 # Create the reference genome after downloading the human genome fasta file and annotation .gtf file
-STAR --runThreadN 10 \
+STAR --runThreadN 12 \
      --runMode genomeGenerate \
-     --genomeDir /home/s2599932/pre-processing/alignment/ref \
-     --genomeFastaFiles /home/s2599932/pre-processing/alignment/fasta/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa \
-     --sjdbGTFfile /home/s2599932/pre-processing/alignment/fasta/Homo_sapiens.GRCh38.112.gtf \
+     --genomeDir /scratch1/s2599932/pre-processing/reference-genome/human-genome \
+     --genomeFastaFiles /scratch1/s2599932/pre-processing/reference-genome/fasta/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa \
+     --sjdbGTFfile /scratch1/s2599932/pre-processing/reference-genome/gtf/Homo_sapiens.GRCh38.112.gtf \
      --sjdbOverhang 99
 ```
 
@@ -89,7 +118,45 @@ do
 done
 ```
 
-### Check the quality of alignment using **samtools**
+
+```{bash}
+#!/bin/bash
+
+# For paired end dat
+# Define input and output directories
+input_dir="/scratch1/s2599932/GSE71318/fastq-files"
+output_dir="/scratch1/s2599932/GSE71318/fastq-files/mapped-reads"
+genome_dir="/home/s2599932/pre-processing/alignment/ref"
+
+# Loop over each _1.fastq file in the input directory
+for fastq_file in ${input_dir}/*_1.fastq
+do
+  # Extract the base name of the file (without path and _1.fastq)
+  base_name=$(basename ${fastq_file} _1.fastq)
+  
+  # Define the matching _2.fastq file
+  fastq_file_r2="${input_dir}/${base_name}_2.fastq"
+
+  # Check if the matching _2.fastq file exists
+  if [[ -f ${fastq_file_r2} ]]; then
+    # Define the output prefix for this file
+    output_prefix="${output_dir}/${base_name}_"
+
+    # Run STAR for the current file
+    STAR --runThreadN 12 \
+         --genomeDir ${genome_dir} \
+         --readFilesIn ${fastq_file} ${fastq_file_r2} \
+         --outFileNamePrefix ${output_prefix} \
+         --outSAMtype BAM SortedByCoordinate
+  else
+    echo "Matching file for ${fastq_file} not found: ${fastq_file_r2}"
+  fi
+done
+
+```
+
+
+### Check the quality of alignment using **samtools** (optional)
 
 ```{bash}
 # Define the output directory where BAM files are located
@@ -111,36 +178,9 @@ done
 
 ### Use **featureCounts** to quantify the aligned reads
 
-> Will generate individual counts file for each bam file
-
-```{bash}
-# Define directories and annotation file
-bam_dir="/home/s2599932/pre-processing/alignment/mapped"
-gtf_file="/home/s2599932/pre-processing/alignment/fasta/Homo_sapiens.GRCh38.112.gtf"
-output_dir="/home/s2599932/pre-processing/alignment/counts"
-
-# Create output directory if it doesn't exist
-mkdir -p ${output_dir}
-
-# Loop over each BAM file in the bam directory
-for bam_file in ${bam_dir}/*_Aligned.sortedByCoord.out.bam
-do
-  # Extract the base name of the file (without path and extension)
-  base_name=$(basename ${bam_file} _Aligned.sortedByCoord.out.bam)
-
-  # Define the output file for featureCounts results
-  counts_output="${output_dir}/${base_name}_featureCounts.txt"
-
-  # Run featureCounts for the current BAM file
-  featureCounts -T 12 \
-                -a ${gtf_file} \
-                -o ${counts_output} \
-                ${bam_file}
-done
-```
-
 > Will generate a single compiled counts file, thats what we need!!
 
+#### For Single End Reads
 ```{bash}
 # Define directories and annotation file
 bam_dir="/home/s2599932/pre-processing/alignment/mapped"
@@ -163,9 +203,32 @@ featureCounts -T 12 \
               ${bam_files}
 ```
 
+### For Paired End reads
+```{bash}
+# Create output directory if it doesn't exist
+mkdir -p ${output_dir}
+
+# Collect all BAM files into a single variable
+bam_files=$(ls ${bam_dir}/*_Aligned.sortedByCoord.out.bam)
+
+# Define the output file for featureCounts results
+counts_output="${output_dir}/all_samples_featureCounts.txt"
+
+# Run featureCounts for all BAM files with paired-end option
+featureCounts -T 12 \
+              -p \
+              -a ${gtf_file} \
+              -o ${counts_output} \
+              ${bam_files}
+
+```
 
 ### The all_sample_featureCounts.txt must have the count data for every sample along with some additional columns that has to dropped in the downstream analysis.
 
+### Clean the counts matrix in R
+```{r}
+
+```
 
 
 

@@ -1,0 +1,131 @@
+---
+title: "targets-file-creation"
+author: "S2599932"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Get metadata information from GEO
+
+```{r}
+library(biomaRt)
+library(GEOquery)
+library(tidyverse)
+```
+
+```{r}
+
+geo_id <- "GSE36552"
+gset <- getGEO(geo_id, GSEMatrix = TRUE)
+
+```
+
+```{r}
+# Extract the phenotype data (metadata)
+phenoData <- pData(phenoData(gset[[1]]))
+
+colnames(phenoData)
+```
+
+```{r}
+targets <- data.frame(
+  Sample_ID = phenoData$geo_accession,
+  Sample_Name = phenoData$title,  # Adjust this if the sample names are under a different column
+  Cell_Type = phenoData$source_name_ch1
+)
+```
+
+```{r}
+original_colnames <- colnames(t1_cleaned)
+
+# Use gsub to extract the sample accessions
+new_colnames <- gsub(".*(SRR[0-9]+).*", "\\1", original_colnames)
+
+# Assign the new column names to the dataframe
+colnames(t1_cleaned) <- new_colnames
+```
+
+```{r}
+gsmID <- targets$Sample_ID
+writeLines(gsmID, "./gsm_ids.txt")
+```
+
+
+## MAPPING THE GSM IDs to SRR IDs
+
+#### USING SRA TOOLKIT AND EDIRECT - needs to be downloaded on server
+
+> Having some trouble trying to read out from .txt file, so for now we can just hard code the input
+
+```{bash}
+# for GSE36552
+#!/bin/bash
+
+# Function to get SRR ID from GSM ID
+get_srr_id() {
+    local gsm_id=$1
+    esearch -db sra -query $gsm_id | efetch -format runinfo | grep $gsm_id
+}
+
+# List of hardcoded GSM IDs
+gsm_ids=(
+    "GSM896803" "GSM896804" "GSM896805" "GSM896806" "GSM896807" "GSM896808"
+    "GSM896809" "GSM896810" "GSM896811" "GSM896812" "GSM896813" "GSM896814"
+    "GSM896815" "GSM896816" "GSM922146" "GSM922147" "GSM922148" "GSM922149"
+    "GSM922150" "GSM922151" "GSM922152" "GSM922153" "GSM922154" "GSM922155"
+    "GSM922156" "GSM922157" "GSM922158" "GSM922159" "GSM922160" "GSM922161"
+    "GSM922162" "GSM922163" "GSM922164" "GSM922165" "GSM922166" "GSM922167"
+    "GSM922168" "GSM922169" "GSM922170" "GSM922171" "GSM922172" "GSM922173"
+    "GSM922174" "GSM922175" "GSM922176" "GSM922177" "GSM922178" "GSM922179"
+    "GSM922180" "GSM922181" "GSM922182" "GSM922183" "GSM922184" "GSM922185"
+    "GSM922186" "GSM922187" "GSM922188" "GSM922189" "GSM922190" "GSM922191"
+    "GSM922192" "GSM922193" "GSM922194" "GSM922195" "GSM922196" "GSM922197"
+    "GSM922198" "GSM922199" "GSM922200" "GSM922201" "GSM922202" "GSM922203"
+    "GSM922204" "GSM922205" "GSM922206" "GSM922207" "GSM922208" "GSM922209"
+    "GSM922210" "GSM922211" "GSM922212" "GSM922213" "GSM922214" "GSM922215"
+    "GSM922216" "GSM922217" "GSM922218" "GSM922219" "GSM922220" "GSM922221"
+    "GSM922222" "GSM922223" "GSM922224" "GSM922225" "GSM922226" "GSM922227"
+    "GSM922228" "GSM922230" "GSM922250" "GSM922251" "GSM922252" "GSM922253"
+    "GSM922254" "GSM922255" "GSM922256" "GSM922257" "GSM922258" "GSM922259"
+    "GSM922260" "GSM922261" "GSM922262" "GSM922263" "GSM922264" "GSM922265"
+    "GSM922266" "GSM922267" "GSM922268" "GSM922269" "GSM922270" "GSM922271"
+    "GSM922272" "GSM922273" "GSM922274" "GSM922275"
+)
+
+# Create a CSV file to store the mappings
+output_file="gsm_to_srr_mapping.csv"
+echo "GSM_ID,SRR_ID" > $output_file
+
+# Log file for errors
+error_log="GSE36552_gsm_to_srr_errors.log"
+echo "Errors:" > $error_log
+
+# Loop through each hardcoded GSM ID and get the corresponding SRR ID
+for gsm_id in "${gsm_ids[@]}"; do
+    if [[ -z "$gsm_id" ]]; then
+        continue
+    fi
+    srr_info=$(get_srr_id $gsm_id)
+    if [[ -n "$srr_info" ]]; then
+        srr_id=$(echo "$srr_info" | cut -d ',' -f 1)
+        echo "$gsm_id,$srr_id" >> $output_file
+    else
+        echo "$gsm_id,NA" >> $output_file
+        echo "Failed to map $gsm_id" >> $error_log
+    fi
+done
+
+echo "Mapping completed. Check the file $output_file for the results and $error_log for any errors."
+
+```
+
+#### Add this mapping to the final targets file
+```{r}
+mapping <- read.csv("./GSE36552_gsm_to_srr_mapping.csv", header = TRUE)
+
+```
+
