@@ -21,10 +21,11 @@ This is the official repository for the dissertation.
 ## Removed the outlying cells and re-plot the PCA plot (02-07-24) 
 - Completed my parts of the PCA plots for reproducing the old dissertation.
 
-## Switched from bioinfmsc6 to bioinfmsc9
+## Switched from bioinfmsc6 to bioinfmsc9 (03-07-24)
 - Changed the primary server
 
 ## Created/Adjusted the Pre-processing pipeline to process the two human datasets (06-07-24)
 - Downloaded the two human data sets on bioinfmsc9 (GSE36552, GSE71318)
 - Ran them through the pre-processing pipeline (not yet complete)
 - Improved the organization of files in the repository.
+
