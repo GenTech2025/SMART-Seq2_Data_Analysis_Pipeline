@@ -19,7 +19,7 @@ library(tidyverse)
 
 ```{r}
 
-geo_id <- "GSE71318"
+geo_id <- "GSE36552"
 gset <- getGEO(geo_id, GSEMatrix = TRUE)
 
 ```
@@ -35,7 +35,9 @@ colnames(phenoData)
 targets <- data.frame(
   Sample_ID = phenoData$geo_accession,
   Sample_Name = phenoData$title,  # Adjust this if the sample names are under a different column
-  Cell_Type = phenoData$source_name_ch1
+  Cell_Type = phenoData$`cell type:ch1`,
+  Developmental_Stage = phenoData$`developmental stage:ch1`,
+  Tissue = phenoData$`tissue:ch1`
 )
 ```
 
@@ -172,13 +174,13 @@ echo "Mapping completed. Check the file $output_file for the results and $error_
 
 #### Add this mapping to the final targets file
 ```{r}
-mapping <- read.csv("/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/GSMtoSRR/GSE71318_gsm_to_srr_mapping.csv", header = TRUE)
+mapping <- read.csv("/home/s2599932/MSc_DSB_Dissertation_2024/03-RAW-data-preprocessing/metadata-creation/GSMtoSRR/GSE36552_gsm_to_srr_mapping.csv", header = TRUE)
 colnames(mapping) <- c("Sample_ID","Run_Accession")
 
 # Merge the two data frame to get the complete data frame
-GSE71318_targets <- merge(targets, mapping, by="Sample_ID", all.x = TRUE)
+GSE36552_targets <- merge(targets, mapping, by="Sample_ID", all.x = TRUE)
 
 # Save the targets file as CSV
-write.csv(GSE71318_targets, file = "./GSE71318_targets.csv",row.names = FALSE)
+write.csv(GSE36552_targets, file = "./GSE36552_targets.csv",row.names = FALSE)
 ```
 

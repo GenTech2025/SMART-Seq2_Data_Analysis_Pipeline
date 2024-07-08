@@ -1,0 +1,171 @@
+---
+title: "human-dataset-testing"
+author: "S2599932"
+date: "2024-07-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## This pipeline is meant to be used for exploration of the human datasets that were preprocessed 
+
+```{r}
+library(Seurat)
+library(scMerge)
+library(SingleCellExperiment)
+library(ggplot2)
+library(dplyr)
+library(biomaRt)
+library(corrplot)
+library(scater)
+library(scran)
+library(biomaRt)
+library(dplyr)
+library(knitr)
+```
+
+
+### GSE71318
+```{r}
+raw_data <- read.table("../../study-datasets/GSE71318-counts/all_samples_featureCounts.txt", header = TRUE, row.names = 1)
+metadata <- read.csv("../03-RAW-data-preprocessing/metadata-creation/GSE71318/GSE71318_targets.csv", header = TRUE)
+```
+
+### Clean the raw data object
+```{r}
+# Clean the raw_data
+cleaned_colnames <- gsub(".*\\.([S|X]RR[0-9]+)_.*", "\\1", colnames(raw_data))
+colnames(raw_data) <- cleaned_colnames
+
+raw_data <- raw_data %>% dplyr::select(-all_of(c("Chr","Start","End","Strand","Length")))
+```
+
+### Create the Single Cell Experiment Object
+```{r}
+# Create the single cell experiment object
+sce <- SingleCellExperiment(
+  assays = list(counts = as.matrix(raw_data)),
+  colData = metadata
+)
+```
+
+### Quality Control
+
+#### Retrieve Mitogenes for Homo Sapiens from Ensembl
+```{r}
+# Connect to the Ensembl BioMart database
+ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+# Query for mitochondrial genes
+mitogenes <- getBM(
+    attributes = c("ensembl_gene_id", "external_gene_name"),
+    filters = "chromosome_name",
+    values = "MT",
+    mart = ensembl
+)
+
+# Extract the ensembl_gene_id column and combine into a single string
+mitogenes_ensembl_ids <- paste(mitogenes$ensembl_gene_id, collapse = "|")
+```
+
+#### Check for mitochondial genes (ERCC Not Present)
+```{r}
+is_mito <- grepl(mitogenes_ensembl_ids, rownames(sce))
+sce$qc_stats <- perCellQCMetrics(sce, subsets = list(Mt=is_mito))
+```
+
+#### Plot the QC results
+##### Library Size
+```{r fig.height=6, fig.width=8}
+hist(sce$qc_stats$sum/1e6, 
+     xlab="Library sizes (millions)", 
+     main="Histogram of Library Sizes", 
+     breaks=20, 
+     col="grey80", 
+     ylab="Number of cells")
+```
+##### Genes Detected
+```{r fig.height=6, fig.width=8}
+hist(sce$qc_stats$detected, 
+     xlab="Number of detected genes", 
+     main="Histogram of Detected Genes", 
+     breaks=20, 
+     col="grey80", 
+     ylab="Number of cells")
+```
+##### Mitochondrial Gene Percentage
+```{r fig.height=6, fig.width=8}
+hist(sce$qc_stats$subsets_Mt_percent,
+     xlab="Mitochondrial proportion (%)", 
+     main="Histogram of Mitochondrial Proportion", 
+     breaks=20, 
+     col="grey80", 
+     ylab="Number of cells")
+```
+
+#### Filter the SCE object based on qc metrics
+```{r}
+libsize_drop <- isOutlier(sce$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop <- isOutlier(sce$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop <- isOutlier(sce$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+
+sce_fil <- sce[,!(libsize_drop|feature_drop|mito_drop)]
+
+filtered_cells <- colnames(sce_fil)
+```
+
+### Normalization
+
+#### Deconvolution Normalization
+```{r}
+clusters <- quickCluster(sce_fil, min.size = 10)
+sce_fil <- computeSumFactors(sce_fil, clusters = clusters)
+sce_fil <- logNormCounts(sce_fil)
+```
+
+
+### Seurat Workflow
+```{r}
+normalized_counts <- assay(sce_fil, "logcounts") # Extract the normalized counts
+
+metadata_copy <- metadata
+
+rownames(metadata_copy) <- metadata_copy$Run_Accession # Set the rownames of the annotation table 
+
+updated_annotation <- metadata_copy[,match(colnames(sce_fil),rownames(metadata_copy))]
+```
+
+#### Create Seurat Object
+```{r}
+so_norm <- CreateSeuratObject(counts = normalized_counts)
+so_norm <- AddMetaData(so_norm, metadata = metadata_copy)
+
+
+DefaultAssay(so_norm) <- "RNA"
+so_norm <- SetAssayData(so_norm, layer = "data", new.data = normalized_counts)
+
+so_norm_fil <- so_norm[,filtered_cells]
+```
+
+#### Downstream analysis
+```{r}
+so_norm_fil <- FindVariableFeatures(so_norm_fil, selection.method = "vst", verbose = FALSE)
+
+so_norm_fil <- ScaleData(so_norm_fil,features = rownames(so_norm_fil), verbose = FALSE)
+```
+
+#### PCA
+```{r}
+so_norm_fil_no_features <- so_norm_fil
+so_norm_fil_hSEG <- so_norm_fil
+so_norm_fil_all_genes <- so_norm_fil
+```
+
+
+```{r}
+so_norm_fil_no_features <- RunPCA(so_norm_fil_no_features, verbose = FALSE, approx = FALSE)
+```
+
+

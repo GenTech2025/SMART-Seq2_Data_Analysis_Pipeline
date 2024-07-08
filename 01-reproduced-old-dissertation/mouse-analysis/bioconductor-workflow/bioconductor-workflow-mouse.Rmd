@@ -37,8 +37,8 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, eval = TRUE
 #### Define filepaths paths
 
 ```{r}
-data_directory <- "/home/s2599932/mouse-dataset/E-MTAB-2600/single_es_tximport.rds"
-annotation_directory <- "/home/s2599932/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt"
+data_directory <- "/home/s2599932/study-datasets/mouse-dataset/E-MTAB-2600/single_es_tximport.rds"
+annotation_directory <- "/home/s2599932/study-datasets/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt"
 output_files_directory <- "./"
 output_plots_directory <- "./"
 ```
@@ -330,6 +330,12 @@ print(p5)
 ```
 
 ### Now we need to replot after excluding the outlier 2i cells
+#### Identify the Outlying cells
+```{r}
+non_subsetted_no_features_defined_Embeddings <- Embeddings(non_subsetted_no_features_defined, reduction = "pca")
+```
+
+
 #### Read in the outliers
 ```{r}
 outliers_df <- read.csv("/home/s2599932/MSc_DSB_Dissertation_2024/reproduced-old-dissertation/sample_outliers.csv", header = FALSE)

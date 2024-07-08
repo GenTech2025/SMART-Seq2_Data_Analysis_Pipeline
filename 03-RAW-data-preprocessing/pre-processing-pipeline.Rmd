@@ -225,11 +225,18 @@ featureCounts -T 12 \
 
 ### The all_sample_featureCounts.txt must have the count data for every sample along with some additional columns that has to dropped in the downstream analysis.
 
+
 ### Clean the counts matrix in R
 ```{r}
+cleaned_colnames <- gsub(".*\\.([S|X]RR[0-9]+)_.*", "\\1", colnames(t1)) # Just extract the run accession use it as 
+colnames(t1) <- cleaned_colnames
 
+t1 <- t1 %>% dplyr::select(-all_of(c("Chr","Start","End","Strand","Length")))
 ```
 
+```{r}
+write.csv(t1, file = "./GSE36552_counts.csv", row.names = TRUE)
+```
 
 
 

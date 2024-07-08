@@ -37,8 +37,8 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, eval = TRUE
 #### Define filepaths paths
 
 ```{r echo=FALSE}
-data_directory <- "/home/s2599932/mouse-dataset/E-MTAB-2600/single_es_tximport.rds"
-annotation_directory <- "/home/s2599932/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt"
+data_directory <- "/home/s2599932/study-datasets/mouse-dataset/E-MTAB-2600/single_es_tximport.rds"
+annotation_directory <- "/home/s2599932/study-datasets/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt"
 output_files_directory <- "./"
 output_plots_directory <- "./"
 ```
@@ -190,22 +190,33 @@ set.seed(191)
 
 non_subsetted_no_features_defined <- RunPCA(non_subsetted_no_features_defined, verbose = FALSE)
 
+# Plot and label the outliers with sample names
 p1 <- DimPlot(non_subsetted_no_features_defined, reduction = "pca", group.by = "Type") +
-    ggtitle("Seurat Normalized + Non Subsetted + No features defined (E-MTAB-2600)") +
-    theme_minimal(base_size = 15) +  # Increase base font size for better readability
-    scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
-    theme(
-        plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
-        axis.title.x = element_text(size = 15),  # Increase x-axis title size
-        axis.title.y = element_text(size = 15),  # Increase y-axis title size
-        axis.text = element_text(size = 12),  # Increase axis text size
-        legend.title = element_text(size = 15),  # Increase legend title size
-        legend.text = element_text(size = 12)  # Increase legend text size
-    ) +
-    guides(color = guide_legend(override.aes = list(size = 5)))  # Increase legend point size
-
+  ggtitle("Seurat Normalized + Non Subsetted + No features defined (E-MTAB-2600)") +
+  theme_minimal(base_size = 15) +  # Increase base font size for better readability
+  scale_color_manual(values = custom_colors) +  # Use a specific viridis color option
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),  # Center and bold the title
+    axis.title.x = element_text(size = 15),  # Increase x-axis title size
+    axis.title.y = element_text(size = 15),  # Increase y-axis title size
+    axis.text = element_text(size = 12),  # Increase axis text size
+    legend.title = element_text(size = 15),  # Increase legend title size
+    legend.text = element_text(size = 12)  # Increase legend text size
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 5))) +  # Increase legend point size
+  geom_text(data = outliers, aes(x = PC_1, y = PC_2, label = rownames(outliers)), vjust = -1, size = 3, color = "black")
 
 print(p1)
+```
+
+#### Detect the outlying cells from the plot (Neccessary to ommit these points)
+```{r}
+non_subsetted_no_features_defined_embeddings <- Embeddings(non_subsetted_no_features_defined, "pca")[,1:2] # extract the first two components
+pca_embedding <- as.data.frame(non_subsetted_no_features_defined_embeddings)
+
+outliers <- pca_embedding %>% arrange(PC_1) %>% head(7)
+
+outliers_list <- rownames(outliers)
 ```
 
 
@@ -324,8 +335,8 @@ print(p5)
 #### Read in the outliers
 
 ```{r}
-outliers_df <- read.csv("/home/s2599932/MSc_DSB_Dissertation_2024/reproduced-old-dissertation/sample_outliers.csv", header = FALSE)
-outliers <- outliers_df$V1
+outliers_df <- read.csv("../sample_outliers_SN_NS_NF.csv", header = FALSE)
+outliers <- outliers_df$X
 ```
 
 
