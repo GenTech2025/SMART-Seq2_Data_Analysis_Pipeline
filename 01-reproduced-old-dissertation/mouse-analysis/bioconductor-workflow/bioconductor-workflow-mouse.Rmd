@@ -330,11 +330,8 @@ print(p5)
 ```
 
 ### Now we need to replot after excluding the outlier 2i cells
-#### Identify the Outlying cells
-```{r}
-non_subsetted_no_features_defined_Embeddings <- Embeddings(non_subsetted_no_features_defined, reduction = "pca")
-```
 
+> Outlying cells were identified from Seurat Normalized + Non Subsetted + No Features Defined
 
 #### Read in the outliers
 ```{r}
