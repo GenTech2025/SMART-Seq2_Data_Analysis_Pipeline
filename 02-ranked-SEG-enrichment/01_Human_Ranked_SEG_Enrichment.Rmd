@@ -1,0 +1,246 @@
+---
+title: "human-ranked-SEG"
+author: "S2599932"
+date: "2024-07-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Start
+
+```{r}
+data_dir <- "/home/s2599932/study-datasets/GSE36552/GSE36552_counts.csv"
+targets_dir <- "/home/s2599932/study-datasets/GSE36552/GSE36552_targets.csv"
+```
+
+
+```{r}
+library(Seurat)
+library(scMerge)
+library(SingleCellExperiment)
+library(ggplot2)
+library(dplyr)
+library(biomaRt)
+library(corrplot)
+library(scater)
+library(scran)
+library(biomaRt)
+library(dplyr)
+library(knitr)
+```
+
+## Read in the data and and annotation information
+```{r}
+raw <- read.csv(data_dir, header = TRUE, row.names = 1)
+annotation <- read.csv(targets_dir, header = TRUE, row.names = "Run_Accession")
+```
+
+## Order the raw data
+```{r}
+# raw <- raw[,rownames(annotation)]
+annotation <- annotation[match(colnames(raw), rownames(annotation)), ]
+```
+
+## Extract the human stably expressed genes from scMerge package
+```{r}
+# Load in hSEG
+data("segList_ensemblGeneID", package = "scMerge")
+hSEG <- segList_ensemblGeneID$human$human_scSEG
+```
+
+## Create the Single Cell Experiment Object (SCE)
+```{r}
+sce_raw <- SingleCellExperiment(
+  assays = list(counts = as.matrix(raw)),
+  colData = annotation
+)
+```
+
+## Quality Control
+### Retrieve the mitochondrial genes for humans
+```{r}
+# Connect to the Ensembl BioMart database
+ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+# Query for mitochondrial genes
+mitogenes <- getBM(
+    attributes = c("ensembl_gene_id", "external_gene_name"),
+    filters = "chromosome_name",
+    values = "MT",
+    mart = ensembl
+)
+
+# Extract the ensembl_gene_id column and combine into a single string
+mitogenes_ensembl_ids <- paste(mitogenes$ensembl_gene_id, collapse = "|")
+```
+
+### Check for mitochondial genes (ERCC Not Present)
+```{r}
+is_mito <- grepl(mitogenes_ensembl_ids, rownames(sce_raw))
+sce_raw$qc_stats <- perCellQCMetrics(sce_raw, subsets = list(Mt=is_mito))
+```
+
+### Drop samples based on QC metrics
+```{r}
+libsize_drop <- isOutlier(sce_raw$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop <- isOutlier(sce_raw$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop <- isOutlier(sce_raw$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+
+sce_fil <- sce_raw[,!(libsize_drop|feature_drop|mito_drop)]
+
+filtered_cells <- colnames(sce_fil)
+```
+
+## Create subsets of the SCE object
+```{r}
+# Display the number of cells for each cell type
+cell_type_counts <- table(sce_fil$Cell_Type)
+print(cell_type_counts)
+```
+
+### SCE object for only Human Embryonic Stem Cells (hESC)
+```{r}
+hESC_cells <- which(sce_fil$Cell_Type == "human embryonic stem cell")
+sce_hESC <- sce_fil[, hESC_cells]
+```
+
+### SCE object for remaining cells
+```{r}
+non_hESC_cells <- which(sce_fil$Cell_Type != "human embryonic stem cell")
+sce_non_hESC <- sce_fil[, non_hESC_cells]
+```
+
+## Normalize all the SCE objects using deconvolution normalization
+```{r}
+# Original SCE object
+clusters <- quickCluster(sce_fil, min.size = 5)
+sce_fil <- computeSumFactors(sce_fil, clusters = clusters)
+sce_fil <- logNormCounts(sce_fil)
+
+# Human Embryonic Stem Cells
+clust1 <- quickCluster(sce_hESC, min.size = 5)
+sce_hESC <- computeSumFactors(sce_hESC, clusters = clust1)
+sce_hESC <- logNormCounts(sce_hESC)
+
+# Non hESCs
+clust2 <- quickCluster(sce_non_hESC, min.size = 5)
+sce_non_hESC <- computeSumFactors(sce_non_hESC, clusters = clust2)
+sce_non_hESC <- logNormCounts(sce_non_hESC)
+```
+
+> The warnings have not been addressed yet.
+
+## Create PCA plot for the original 
+```{r}
+# Copy the sce object
+sce_fil_all_genes <- sce_fil
+sce_fil_mSEG <- sce_fil
+
+# Identify most variable genes in the dataset
+# selected_genes <- rownames(sce_fil)[order(rowVars(assay(sce_fil)), decreasing=TRUE)[1:2000]]
+
+if (is.character(hSEG)) {
+  # Ensure all gene names in hSEG exist in sce_fil_mSEG
+  hSEG <- hSEG[hSEG %in% rownames(sce_fil_mSEG)]
+}
+
+# Run PCA
+sce_fil_all_genes <- runPCA(sce_fil_all_genes, subset_row = rownames(sce_fil_all_genes))
+sce_fil_mSEG <- runPCA(sce_fil_mSEG, subset_row = hSEG)
+```
+
+```{r}
+cell_types <- colData(sce_fil)$Cell_Type
+
+# Extract the PCA results
+pca_results_1 <- reducedDim(sce_fil_all_genes, "PCA")
+pca_results_2 <- reducedDim(sce_fil_mSEG, "PCA")
+
+# Create a dataframe for plotting
+pca_df_1 <- data.frame(PC1 = pca_results_1[, 1],
+                     PC2 = pca_results_1[, 2],
+                     CellType = cell_types)
+
+pca_df_2 <- data.frame(PC1 = pca_results_2[, 1],
+                     PC2 = pca_results_2[, 2],
+                     CellType = cell_types)
+```
+
+```{r fig.height=8, fig.width=10}
+# Plot the PCA results
+ggplot(pca_df_1, aes(x = PC1, y = PC2, color = CellType)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "PCA of Single Cell Data",
+       x = "Principal Component 1",
+       y = "Principal Component 2")
+```
+
+```{r fig.height=8, fig.width=10}
+# Plot the PCA results
+ggplot(pca_df_2, aes(x = PC1, y = PC2, color = CellType)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "PCA of Single Cell Data",
+       x = "Principal Component 1",
+       y = "Principal Component 2")
+```
+## Prepare the dataset so that it is suitable for the next step
+```{r}
+# Ensure there are no NA values
+sum(is.na(rowSums(logcounts(sce_hESC))))
+sum(is.na(colSums(logcounts(sce_hESC))))
+
+sum(is.na(rowSums(logcounts(sce_non_hESC))))
+sum(is.na(colSums(logcounts(sce_non_hESC))))
+```
+
+```{r}
+# Calculate the sum of columns
+colsums <- colSums(assay(sce_hESC, "counts"))
+
+# Verify the length of colsums matches the number of columns in the assay
+length(colsums) == ncol(sce_hESC)
+```
+
+```{r}
+sce_hESC_norm_counts <- logcounts(sce_hESC)[,colsums>100000]
+hist(colSums(sce_hESC_norm_counts))
+```
+```{r}
+# Calculate the sum of columns
+colsums1 <- colSums(assay(sce_non_hESC, "counts"))
+
+# Verify the length of colsums matches the number of columns in the assay
+length(colsums1) == ncol(sce_non_hESC)
+```
+```{r}
+sce_non_hESC_norm_counts <- logcounts(sce_non_hESC)[,colsums>100000]
+hist(colSums(sce_non_hESC_norm_counts))
+```
+
+> Calculating scSEG index with F-statistics 
+
+Fitting the mixture model... 
+
+  |==================================================================================================================================================================| 100%
+
+Fitting ANOVA model for F-stats... 
+
+Error in scSEGIndex: Error in data.frame(segIdx = segIdx, rho = r, sigma = s, mu = m, mu.scaled = m.scaled, : arguments imply differing number of rows: 23014, 0
+
+scSEGIndex encountered an error.
+
+
+```{r}
+param = BiocParallel::MulticoreParam(workers = 12, progressbar = TRUE)
+sce_non_hESC_seg <- scSEGIndex(sce_non_hESC_norm_counts, cell_type = colData(sce_non_hESC)$Cell_Type , BPPARAM = param)
+```
+```{r}
+param = BiocParallel::MulticoreParam(workers = 12, progressbar = TRUE)
+sce_hESC_seg <- scSEGIndex(sce_hESC_norm_counts, cell_type = colData(sce_hESC)$Cell_Type , BPPARAM = param)
+```
+

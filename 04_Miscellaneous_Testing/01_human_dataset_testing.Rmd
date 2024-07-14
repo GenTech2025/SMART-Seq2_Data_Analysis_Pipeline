@@ -27,13 +27,20 @@ library(knitr)
 ```
 
 
-### GSE71318
+### GSE36552
 ```{r}
-raw_data <- read.table("../../study-datasets/GSE71318-counts/all_samples_featureCounts.txt", header = TRUE, row.names = 1)
-metadata <- read.csv("../03-RAW-data-preprocessing/metadata-creation/GSE71318/GSE71318_targets.csv", header = TRUE)
+raw_data <- read.csv("../../study-datasets/GSE36552/GSE36552_counts.csv", header = TRUE, row.names = 1)
+metadata <- read.csv("../../study-datasets/GSE36552/GSE36552_targets.csv", header = TRUE)
 ```
 
-### Clean the raw data object
+#### Check the columns of metadata table
+```{r}
+colnames(metadata)
+rownames(metadata) <- metadata$Run_Accession
+```
+
+
+### Clean the raw data object (not required)
 ```{r}
 # Clean the raw_data
 cleaned_colnames <- gsub(".*\\.([S|X]RR[0-9]+)_.*", "\\1", colnames(raw_data))
@@ -104,8 +111,20 @@ hist(sce$qc_stats$subsets_Mt_percent,
      col="grey80", 
      ylab="Number of cells")
 ```
+### Comments on Quality Control Histograms from Single-Cell RNA-seq Analysis
 
-#### Filter the SCE object based on qc metrics
+#### Histogram of Detected Genes
+The histogram of detected genes per cell shows a broad distribution, with most cells having between 15,000 and 20,000 genes detected. This indicates a high complexity in the transcriptome of the cells under study. The relatively smaller number of cells with very high or very low gene counts suggests some degree of technical or biological variability, which is typical in single-cell RNA-seq experiments. It's important to monitor these extremes as they could indicate potential outliers or artifacts that may need to be addressed in further analysis.
+
+#### Histogram of Library Sizes
+The library size histogram reveals that the majority of cells have library sizes ranging from 15 to 25 million reads/UMIs, suggesting adequate sequencing depth across the dataset. This is essential for reliable gene expression quantification. The presence of some cells with exceptionally high or low library sizes might point to technical issues or inconsistencies in cell capture efficiency, which could potentially affect the overall data quality and should be examined further.
+
+#### Histogram of Mitochondrial Proportion
+The mitochondrial proportion histogram indicates that most cells have mitochondrial RNA content between 10% and 30%. While this suggests that the majority of cells are healthy, a noticeable fraction of cells with higher mitochondrial proportions (>20%) could imply cellular stress or apoptosis, as damaged cells typically show increased mitochondrial gene expression. These cells may need to be scrutinized more closely or filtered out to ensure that they do not skew the downstream analyses.
+
+---
+
+### Filter the SCE object based on qc metrics
 ```{r}
 libsize_drop <- isOutlier(sce$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
 feature_drop <- isOutlier(sce$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
@@ -116,13 +135,78 @@ sce_fil <- sce[,!(libsize_drop|feature_drop|mito_drop)]
 filtered_cells <- colnames(sce_fil)
 ```
 
-### Normalization
 
-#### Deconvolution Normalization
+### Subset the SCE object to two different SCE objects (one containing hESC and the rest in others)
+```{r}
+# Count the number of cells for each cell type
+cell_type_counts <- table(sce_fil$Cell_Type)
+
+# Identify the indices of hESC cells
+hESC_cells <- which(sce_fil$Cell_Type == "human embryonic stem cell")
+
+# Identify the indices of the rest of the cells
+non_hESC_cells <- which(sce_fil$Cell_Type != "human embryonic stem cell")
+
+# Subset the sce_fil object to create two new SingleCellExperiment objects
+sce_hESC <- sce_fil[, hESC_cells]
+sce_non_hESC <- sce_fil[, non_hESC_cells]
+
+# Verify the subsets
+dim(sce_hESC)
+dim(sce_non_hESC)
+```
+
+## Now there are two different SCE object, which can be used to perform the ranked difference study
+
+### Normalization
+#### Deconvolution Normalization of the SCE_FIl object (To make the PCA plot)
 ```{r}
 clusters <- quickCluster(sce_fil, min.size = 10)
 sce_fil <- computeSumFactors(sce_fil, clusters = clusters)
 sce_fil <- logNormCounts(sce_fil)
+```
+#### Deconvolution normalization of subsetted SCE objects
+```{r}
+# Human Embryonic Stem Cells
+clust1 <- quickCluster(sce_hESC, min.size = 10)
+sce_hESC <- computeSumFactors(sce_hESC, clusters = clust1)
+sce_hESC <- logNormCounts(sce_hESC)
+
+# Non hESCs
+clust2 <- quickCluster(sce_non_hESC, min.size = 10)
+sce_non_hESC <- computeSumFactors(sce_non_hESC, clusters = clust2)
+sce_non_hESC <- logNormCounts(sce_non_hESC)
+```
+
+> Warning in regularize.values(x, y, ties, missing(ties), na.rm = na.rm) :
+  collapsing to unique 'x' values
+Warning in check_numbers(k = k, nu = nu, nv = nv, limit = min(dim(x)) -  :
+  more singular values/vectors requested than available
+Warning in (function (A, nv = 5, nu = nv, maxit = 1000, work = nv + 7, reorth = TRUE,  :
+  You're computing too large a percentage of total singular values, use a standard svd instead.
+Warning in (function (A, nv = 5, nu = nv, maxit = 1000, work = nv + 7, reorth = TRUE,  :
+  You're computing too large a percentage of total singular values, use a standard svd instead.
+  
+```{r WARNING MITIGATION}
+# If you still encounter warnings, consider using standard SVD method explicitly if needed.
+# Example for explicitly handling SVD if the warnings persist:
+# Assume matrix A is the count matrix from your SingleCellExperiment object.
+
+A_hESC <- counts(sce_hESC)
+A_non_hESC <- counts(sce_non_hESC)
+
+# Perform standard SVD on the counts matrices if necessary
+svd_result_hESC <- svd(A_hESC)
+U_hESC <- svd_result_hESC$u
+S_hESC <- svd_result_hESC$d
+V_hESC <- svd_result_hESC$v
+
+svd_result_non_hESC <- svd(A_non_hESC)
+U_non_hESC <- svd_result_non_hESC$u
+S_non_hESC <- svd_result_non_hESC$d
+V_non_hESC <- svd_result_non_hESC$v
+
+# These SVD results can then be used as needed in your normalization or other analyses.
 ```
 
 
@@ -165,7 +249,62 @@ so_norm_fil_all_genes <- so_norm_fil
 
 
 ```{r}
-so_norm_fil_no_features <- RunPCA(so_norm_fil_no_features, verbose = FALSE, approx = FALSE)
+so_norm_fil_no_features <- RunPCA(so_norm_fil_no_features, verbose = FALSE)
 ```
 
+```{r fig.height=8, fig.width=10, GGPLOT2}
+# Extract PCA embeddings
+pca_embeddings <- Embeddings(so_norm_fil_no_features, reduction = "pca")
+
+# Create a data frame with PCA embeddings and cell type information
+pca_data <- data.frame(pca_embeddings, Cell_Type = so_norm_fil_no_features$Cell_Type)
+
+# Plot the PCA results
+p <- ggplot(pca_data, aes(x = PC_1, y = PC_2, color = Cell_Type)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "PCA Plot Colored by Cell Type", x = "PC1", y = "PC2") +
+  theme(legend.title = element_text(size = 10), legend.text = element_text(size = 8))
+
+# Print the plot
+print(p)
+```
+
+```{r fig.height=8, fig.width=10}
+# Use DimPlot to visualize PCA results colored by 'Cell_Type'
+p <- DimPlot(so_norm_fil_no_features, reduction = "pca", group.by = "Cell_Type") +
+  labs(title = "PCA Plot Colored by Cell Type") +
+  theme_minimal()
+
+# Print the plot
+print(p)
+```
+
+```{r}
+# Load in hSEG
+data("segList_ensemblGeneID", package = "scMerge")
+hSEG <- segList_ensemblGeneID$human$human_scSEG
+```
+
+```{r}
+so_norm_fil_hSEG <- subset(so_norm_fil_hSEG, features = hSEG)
+so_norm_fil_hSEG <- RunPCA(so_norm_fil_hSEG, verbose = FALSE)
+```
+
+
+```{r fig.height=8, fig.width=10}
+# Use DimPlot to visualize PCA results colored by 'Cell_Type'
+p1 <- DimPlot(so_norm_fil_hSEG, reduction = "pca", group.by = "Cell_Type") +
+  labs(title = "PCA Plot Colored by Cell Type") +
+  theme_minimal()
+
+# Print the plot
+print(p1)
+```
+
+
+# Ranked SEG Study for Human dataset (GSE36552)
+```{r}
+
+```
 

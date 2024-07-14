@@ -282,7 +282,7 @@ write.csv(test_names1000,file="test_names1000.csv")
 write.csv(test_names, file = "test_names.csv")
 write.csv(test_names1000_Notch1,file="test_names1000_Notch.csv")
 
-#to show plots -plotEnrichment(pathwaysH[["<some Pathway"]], ranks)
+plotEnrichment(pathwaysH[["<some Pathway"]], ranks) # needs to be plotted
 
 #try fitting model within the scES data from class and cf serum and 2i (Types of cells)
 sce$Type

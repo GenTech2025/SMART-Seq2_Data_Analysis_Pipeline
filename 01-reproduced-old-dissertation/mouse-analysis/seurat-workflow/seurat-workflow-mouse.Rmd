@@ -175,14 +175,10 @@ subsetted_mSEGs_as_features <- so_norm_fil
 custom_colors <- c(
     "2i" = "#1f77b4",  # Blue
     "a2i" = "#2ca02c",  # Green
-    "serum" = "#9467bd",   # Purple
+    "serum" = "#9467bd"  # Purple
 )
 ```
 
-#### Read in already identified outliers
-```{r}
-outliers <- read.csv("../sample_outliers_SN_NS_NF.csv", header = TRUE, row.names = "X")
-```
 
 
 ### PCA Plots
@@ -947,6 +943,9 @@ Heatmap(combined_matrix, name = "Normalized Contribution",
 
 
 ---
+
+####JKJKJKJKJKJKJKJKJKJKJKKKJKJKJKJKKKJKJKJKKJKJKK
+
 # Try to make seperate heatmaps for both PCA plots
 #### Extract the PCA loadings and embeddings
 ```{r}
@@ -1156,6 +1155,7 @@ Heatmap(combined_df, name = "Combined Contribution",
         right_annotation = rowAnnotation(CellType = annotation_df$CellType,
                                          col = list(CellType = c("a2i" = "orange", "2i" = "purple", "serum" = "green"))))
 ```
+
 ```{r fig.height=15, fig.width=15}
 # Create a vector for gene origins
 gene_origins <- c(rep("obj1", ncol(df1)), rep("obj2", ncol(df2)))
@@ -1177,171 +1177,227 @@ Heatmap(combined_df, name = "Combined Contribution",
                                          col = list(CellType = c("a2i" = "orange", "2i" = "purple", "serum" = "green"))))
 ```
 
-```{r fig.height=15, fig.width=15}
+
+# 11/07/24 - Heatmap Plot
+
+```{r fig.height=10, fig.width=12}
+library(Seurat)
 library(dplyr)
 library(ComplexHeatmap)
+library(circlize)
 
-# Ensure the relevant columns are numeric for the first Seurat object
-subsetted_no_features_defined_embeddings <- subsetted_no_features_defined_embeddings %>%
-  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2))
-
+# Create SumOfPCs for both loadings dataframes
 subsetted_no_features_defined_loadings <- subsetted_no_features_defined_loadings %>%
-  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2))
-
-# Convert the selected columns to matrices for the first Seurat object
-embeddings_matrix_1 <- as.matrix(subsetted_no_features_defined_embeddings[, c("PC_1", "PC_2")])
-loadings_matrix_1 <- as.matrix(subsetted_no_features_defined_loadings[, c("PC_1", "PC_2")])
-
-# Perform matrix multiplication for the first Seurat object
-contribution_matrix_1 <- embeddings_matrix_1 %*% t(loadings_matrix_1)
-
-# Normalize the contribution matrix for the first Seurat object
-normalized_matrix_1 <- apply(contribution_matrix_1, 2, normalize_columns)
-
-# Ensure the relevant columns are numeric for the second Seurat object
-subsetted_mSEGs_as_features_embeddings <- subsetted_mSEGs_as_features_embeddings %>%
-  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2))
+  mutate(SumOfPCs = abs(PC_1) + abs(PC_2))
 
 subsetted_mSEGs_as_features_loadings <- subsetted_mSEGs_as_features_loadings %>%
-  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2))
+  mutate(SumOfPCs = abs(PC_1) + abs(PC_2))
 
-# Convert the selected columns to matrices for the second Seurat object
-embeddings_matrix_2 <- as.matrix(subsetted_mSEGs_as_features_embeddings[, c("PC_1", "PC_2")])
-loadings_matrix_2 <- as.matrix(subsetted_mSEGs_as_features_loadings[, c("PC_1", "PC_2")])
+# Ensure the relevant columns are numeric
+subsetted_no_features_defined_loadings <- subsetted_no_features_defined_loadings %>%
+  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2), SumOfPCs = as.numeric(SumOfPCs))
 
-# Use only the top 25 rows of the loading matrix for the second Seurat object
-loadings_matrix_top25 <- loadings_matrix_2[1:25, ]
+subsetted_mSEGs_as_features_loadings <- subsetted_mSEGs_as_features_loadings %>%
+  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2), SumOfPCs = as.numeric(SumOfPCs))
 
-# Perform matrix multiplication for the second Seurat object
-contribution_matrix_2 <- embeddings_matrix_2 %*% t(loadings_matrix_top25)
+# Identify the top 25 genes from the loadings dataframes based on SumOfPCs
+top_genes_obj1 <- subsetted_no_features_defined_loadings %>%
+  arrange(desc(SumOfPCs)) %>%
+  head(25) %>%
+  rownames()
 
-# Normalize the contribution matrix for the second Seurat object
-normalized_matrix_2 <- apply(contribution_matrix_2, 2, normalize_columns)
+top_genes_obj2 <- subsetted_mSEGs_as_features_loadings %>%
+  arrange(desc(SumOfPCs)) %>%
+  head(25) %>%
+  rownames()
 
-# Convert both normalized matrices to data frames and add suffixes to the column names
-df1 <- as.data.frame(normalized_matrix_1)
-colnames(df1) <- paste0(colnames(df1), "_obj1")
+# Subset the Seurat objects based on the top 25 genes
+subsetted_no_features_defined_subset <- subset(subsetted_no_features_defined, features = top_genes_obj1)
+subsetted_mSEGs_as_features_subset <- subset(subsetted_mSEGs_as_features, features = top_genes_obj2)
 
-df2 <- as.data.frame(normalized_matrix_2)
-colnames(df2) <- paste0(colnames(df2), "_obj2")
+# Extract the log-normalized counts
+lognorm_counts_obj1 <- as.matrix(GetAssayData(subsetted_no_features_defined_subset, slot = "data"))
+lognorm_counts_obj2 <- as.matrix(GetAssayData(subsetted_mSEGs_as_features_subset, slot = "data"))
 
-# Combine the data frames
-combined_df <- cbind(df1, df2)
+# Center the data by gene (normalize each gene)
+lognorm_counts_obj1 <- t(scale(t(lognorm_counts_obj1)))
+lognorm_counts_obj2 <- t(scale(t(lognorm_counts_obj2)))
 
-# Create a vector for gene origins
-gene_origins <- c(rep("obj1", ncol(df1)), rep("obj2", ncol(df2)))
+# Transpose the matrices to have genes as columns and samples as rows
+lognorm_counts_obj1 <- t(lognorm_counts_obj1)
+lognorm_counts_obj2 <- t(lognorm_counts_obj2)
+```
 
-# Handle common genes (columns) in both data frames and annotate them
-for (gene in common_genes) {
-  combined_df[[gene]] <- df1[[gene]] + df2[[gene]]
-  gene_origins[which(names(combined_df) == gene)] <- "both"
-}
-
-# Create a column annotation for gene origins
-column_annotation <- HeatmapAnnotation(
-  GeneOrigin = gene_origins,
-  col = list(GeneOrigin = c("obj1" = "grey", "obj2" = "darkgreen", "both" = "violet"))
-)
-
-# Create the heatmap with the combined data frame and annotations
-Heatmap(combined_df, name = "Combined Contribution",
+```{r fig.height=10, fig.width=12}
+# Create heatmaps
+# Heatmap for subsetted_no_features_defined_subset
+Heatmap(lognorm_counts_obj1, name = "LogNormalized Counts Obj1",
         cluster_rows = TRUE, cluster_columns = TRUE,
         show_row_names = FALSE, show_column_names = TRUE,
-        heatmap_legend_param = list(title = "Combined Contribution"),
-        top_annotation = column_annotation,
-        right_annotation = rowAnnotation(CellType = annotation_df$CellType,
-                                         col = list(CellType = c("a2i" = "orange", "2i" = "purple", "serum" = "green"))))
+        heatmap_legend_param = list(title = "LogNormalized Counts"),
+        column_title = "Genes", row_title = "Samples")
 
 ```
 
-```{r}
-library(ComplexHeatmap)
+```{r fig.height=10, fig.width=12}
+# Heatmap for subsetted_mSEGs_as_features_subset
+Heatmap(lognorm_counts_obj2, name = "LogNormalized Counts Obj2",
+        cluster_rows = TRUE, cluster_columns = TRUE,
+        show_row_names = FALSE, show_column_names = TRUE,
+        heatmap_legend_param = list(title = "LogNormalized Counts"),
+        column_title = "Genes", row_title = "Samples")
+```
 
-# Normalize function
+> the objects subsetted_no_features_defined and subsetted_mSEGs_as_features are referred to as obj1 and obj2, respectively
+
+# Heatmap with annotation
+```{r fig.height=10, fig.width=12}
+library(Seurat)
+library(dplyr)
+library(ComplexHeatmap)
+library(circlize)
+
+# Ensure the relevant columns are numeric
+subsetted_no_features_defined_loadings <- subsetted_no_features_defined_loadings %>%
+  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2), SumOfPCs = as.numeric(SumOfPCs))
+
+subsetted_mSEGs_as_features_loadings <- subsetted_mSEGs_as_features_loadings %>%
+  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2), SumOfPCs = as.numeric(SumOfPCs))
+
+# Identify the top 25 genes from the loadings dataframes based on SumOfPCs
+top_genes_no_features <- subsetted_no_features_defined_loadings %>%
+  arrange(desc(SumOfPCs)) %>%
+  head(25) %>%
+  rownames()
+
+top_genes_mSEGs <- subsetted_mSEGs_as_features_loadings %>%
+  arrange(desc(SumOfPCs)) %>%
+  head(25) %>%
+  rownames()
+
+# Subset the Seurat objects based on the top 25 genes
+subsetted_no_features_defined_subset <- subset(subsetted_no_features_defined, features = top_genes_no_features)
+subsetted_mSEGs_as_features_subset <- subset(subsetted_mSEGs_as_features, features = top_genes_mSEGs)
+
+# Extract the log-normalized counts
+lognorm_counts_no_features <- as.matrix(GetAssayData(subsetted_no_features_defined_subset, slot = "data"))
+lognorm_counts_mSEGs <- as.matrix(GetAssayData(subsetted_mSEGs_as_features_subset, slot = "data"))
+
+# Normalize columns using the provided function
 normalize_columns <- function(x) {
   (x - mean(x)) / sd(x)
 }
 
-# Ensure the relevant columns are numeric for both Seurat objects
-subsetted_no_features_defined_embeddings <- subsetted_no_features_defined_embeddings %>%
-  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2))
+lognorm_counts_no_features <- t(apply(lognorm_counts_no_features, 1, normalize_columns))
+lognorm_counts_mSEGs <- t(apply(lognorm_counts_mSEGs, 1, normalize_columns))
 
-subsetted_no_features_defined_loadings <- subsetted_no_features_defined_loadings %>%
-  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2))
+# Transpose the matrices to have genes as columns and samples as rows
+lognorm_counts_no_features <- t(lognorm_counts_no_features)
+lognorm_counts_mSEGs <- t(lognorm_counts_mSEGs)
 
-subsetted_mSEGs_as_features_embeddings <- subsetted_mSEGs_as_features_embeddings %>%
-  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2))
+# Extract cell type annotations
+cell_types_no_features <- as.factor(subsetted_no_features_defined_subset@meta.data$Type)
+cell_types_mSEGs <- as.factor(subsetted_mSEGs_as_features_subset@meta.data$Type)
 
-subsetted_mSEGs_as_features_loadings <- subsetted_mSEGs_as_features_loadings %>%
-  mutate(PC_1 = as.numeric(PC_1), PC_2 = as.numeric(PC_2))
+# Create a row annotation for cell types
+row_annotation_no_features <- rowAnnotation(CellType = cell_types_no_features,
+                                            col = list(CellType = c("2i" = "purple", "a2i" = "orange", "serum" = "darkgreen")))
 
-# Convert the selected columns to matrices
-embeddings_matrix_1 <- as.matrix(subsetted_no_features_defined_embeddings[, c("PC_1", "PC_2")])
-loadings_matrix_1 <- as.matrix(subsetted_no_features_defined_loadings[, c("PC_1", "PC_2")])
+row_annotation_mSEGs <- rowAnnotation(CellType = cell_types_mSEGs,
+                                      col = list(CellType = c("2i" = "purple", "a2i" = "orange", "serum" = "darkgreen")))
 
-embeddings_matrix_2 <- as.matrix(subsetted_mSEGs_as_features_embeddings[, c("PC_1", "PC_2")])
-loadings_matrix_2 <- as.matrix(subsetted_mSEGs_as_features_loadings[, c("PC_1", "PC_2")])
-
-# Use only the top 25 rows of the loading matrix for the second Seurat object
-loadings_matrix_top25 <- loadings_matrix_2[1:25, ]
-
-# Perform matrix multiplication
-contribution_matrix_1 <- embeddings_matrix_1 %*% t(loadings_matrix_1)
-contribution_matrix_2 <- embeddings_matrix_2 %*% t(loadings_matrix_top25)
-
-# Normalize the contribution matrices
-normalized_matrix_1 <- apply(contribution_matrix_1, 2, normalize_columns)
-normalized_matrix_2 <- apply(contribution_matrix_2, 2, normalize_columns)
-
-# Convert normalized matrices to data frames with suffixes to indicate their origin
-df1 <- as.data.frame(normalized_matrix_1)
-colnames(df1) <- paste0(colnames(df1), "_obj1")
-
-df2 <- as.data.frame(normalized_matrix_2)
-colnames(df2) <- paste0(colnames(df2), "_obj2")
-
-# Combine the data frames
-combined_df <- cbind(df1, df2)
-
-# Create a vector for gene origins
-gene_origins <- c(rep("obj1", ncol(df1)), rep("obj2", ncol(df2)))
-
-# Handle common genes (columns) in both data frames and annotate them
-original_names_1 <- gsub("_obj1", "", colnames(df1))
-original_names_2 <- gsub("_obj2", "", colnames(df2))
-common_genes <- intersect(original_names_1, original_names_2)
-
-for (gene in common_genes) {
-  combined_df[[paste0(gene, "_obj1_obj2")]] <- df1[[paste0(gene, "_obj1")]] + df2[[paste0(gene, "_obj2")]]
-  gene_origins <- c(gene_origins, "both")
-  combined_df[[paste0(gene, "_obj1")]] <- NULL
-  combined_df[[paste0(gene, "_obj2")]] <- NULL
-}
-
-# Update gene origins vector
-gene_origins <- c(gene_origins, rep("obj1", ncol(df1) - length(common_genes)), rep("obj2", ncol(df2) - length(common_genes)))
-
-# Create a column annotation for gene origins
-column_annotation <- HeatmapAnnotation(
-  GeneOrigin = gene_origins,
-  col = list(GeneOrigin = c("obj1" = "blue", "obj2" = "red", "both" = "purple"))
-)
-
-# Extract the cell type annotation
-cell_types <- non_subsetted_no_features_defined@meta.data$Type
-
-# Create a data frame for annotations
-annotation_df <- data.frame(CellType = cell_types)
-rownames(annotation_df) <- rownames(subsetted_mSEGs_as_features_embeddings)
-
-# Create the heatmap with the combined data frame and annotations
-Heatmap(as.matrix(combined_df), name = "Combined Contribution",
+# Create heatmaps
+# Heatmap for subsetted_no_features_defined_subset
+Heatmap(lognorm_counts_no_features, name = "LogNormalized Counts No Features",
         cluster_rows = TRUE, cluster_columns = TRUE,
         show_row_names = FALSE, show_column_names = TRUE,
-        heatmap_legend_param = list(title = "Combined Contribution"),
-        top_annotation = column_annotation,
-        right_annotation = rowAnnotation(CellType = annotation_df$CellType,
-                                         col = list(CellType = c("a2i" = "orange", "2i" = "purple", "serum" = "green"))))
+        heatmap_legend_param = list(title = "LogNormalized Counts"),
+        column_title = "Genes", row_title = "Samples",
+        right_annotation = row_annotation_no_features)
 
+# Heatmap for subsetted_mSEGs_as_features_subset
+Heatmap(lognorm_counts_mSEGs, name = "LogNormalized Counts mSEGs",
+        cluster_rows = TRUE, cluster_columns = TRUE,
+        show_row_names = FALSE, show_column_names = TRUE,
+        heatmap_legend_param = list(title = "LogNormalized Counts"),
+        column_title = "Genes", row_title = "Samples",
+        right_annotation = row_annotation_mSEGs)
 ```
+
+```{r fig.height=10, fig.width=12}
+## TO MITIGATE THE WARNING AND VISUALIZE THE OUTLYING DATA
+
+# Define custom color scale
+col_fun <- colorRamp2(c(min(lognorm_counts_mSEGs), 0, max(lognorm_counts_mSEGs)),
+                      c("blue", "white", "red"))
+
+# Generate the heatmap with custom color scale
+Heatmap(lognorm_counts_mSEGs, name = "LogNormalized Counts mSEGs",
+        cluster_rows = TRUE, cluster_columns = TRUE,
+        show_row_names = FALSE, show_column_names = TRUE,
+        heatmap_legend_param = list(title = "LogNormalized Counts"),
+        column_title = "Genes", row_title = "Samples",
+        right_annotation = row_annotation_mSEGs,
+        col = col_fun)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Heatmap of all genes as a reference
+```{r fig.height=10, fig.width=12}
+# Extract the normalized counts matrix
+lognorm_counts <- as.matrix(GetAssayData(subsetted_no_features_defined, slot = "data"))
+
+# Normalize columns using the provided function
+normalize_columns <- function(x) {
+  (x - mean(x)) / sd(x)
+}
+
+lognorm_counts <- t(apply(lognorm_counts, 1, normalize_columns))
+
+# Transpose the matrices to have genes as columns and samples as rows
+lognorm_counts <- t(lognorm_counts)
+
+# Check for NA/NaN/Inf values and handle them
+lognorm_counts[is.na(lognorm_counts)] <- 0  # Replace NA values with 0
+lognorm_counts[is.nan(lognorm_counts)] <- 0  # Replace NaN values with 0
+lognorm_counts[is.infinite(lognorm_counts)] <- 0  # Replace Inf values with 0
+
+# Create the annotation
+cell_types <- as.factor(subsetted_no_features_defined_subset@meta.data$Type)
+row_annotation <- rowAnnotation(CellType = cell_types,
+                                col = list(CellType = c("2i" = "purple", "a2i" = "orange", "serum" = "darkgreen")))
+
+# Generate the heatmap
+Heatmap(lognorm_counts, name = "LogNormalized Counts No Features",
+        cluster_rows = TRUE, cluster_columns = TRUE,
+        show_row_names = FALSE, show_column_names = FALSE,
+        heatmap_legend_param = list(title = "LogNormalized Counts"),
+        column_title = "Genes", row_title = "Samples",
+        right_annotation = row_annotation)
+```
+```{r}
+# Set up the PNG graphics device with the desired dimensions and resolution
+png("all_genes_heatmap_mSEGs.png", width = 15, height = 12, units = "in", res = 500)
+# Generate the heatmap
+# Define custom color scale
+Heatmap(lognorm_counts, name = "LogNormalized Counts No Features",
+        cluster_rows = TRUE, cluster_columns = TRUE,
+        show_row_names = FALSE, show_column_names = FALSE,
+        heatmap_legend_param = list(title = "LogNormalized Counts"),
+        column_title = "Genes", row_title = "Samples",
+        right_annotation = row_annotation)
+dev.off()
+```
+
 
