@@ -275,7 +275,7 @@ print(p3)
 #### 4) Seurat Normalized + Subsetted + No features defined
 
 ```{r fig.height=10, fig.width=12, fig.align='center',echo=FALSE}
-set.seed(194)
+#set.seed(194)
 
 # First subset the seurat object
 subsetted_no_features_defined <- subset(subsetted_no_features_defined, features = mSEG)

@@ -154,43 +154,14 @@ msigdb.mm.list <- geneIds(msigdb.mm)
 
 #fgsea using full signatures...
 fgsea_es <- fgsea(msigdb.mm.list, es, maxSize=500,nPermSimple = 100000)
-"""
-Warning messages:
-1: In preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
-  There are ties in the preranked stats (8.98% of the list).
-The order of those tied genes will be arbitrary, which may produce unexpected results.
-2: In fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
-  There were 8 pathways for which P-values were not calculated properly due to unbalanced (positive and negative) gene-level statistic values. For such pathways pval, padj, NES, log2err are set to NA. You can try to increase the value of the argument nPermSimple (for example set it nPermSimple = 1000000)
-"""
+
 fgsea_dev <- fgsea(msigdb.mm.list, dev, maxSize=500,nPermSimple = 100000)
-"""
-Warning messages:
-1: In preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
-  There are ties in the preranked stats (7.98% of the list).
-The order of those tied genes will be arbitrary, which may produce unexpected results.
-2: In fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
-  There were 4 pathways for which P-values were not calculated properly due to unbalanced (positive and negative) gene-level statistic values. For such pathways pval, padj, NES, log2err are set to NA. You can try to increase the value of the argument nPermSimple (for example set it nPermSimple = 1000000)
-"""
 
 #fgsea using full msigdb... maxSize =500 may block chip enrichment matches (max list size often >500 in that case)
 fgsea_es <- fgsea(msigdb.mm.list, es, nPermSimple = 100000)
-"""
-Warning messages:
-1: In preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
-  There are ties in the preranked stats (8.98% of the list).
-The order of those tied genes will be arbitrary, which may produce unexpected results.
-2: In fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
-  There were 8 pathways for which P-values were not calculated properly due to unbalanced (positive and negative) gene-level statistic values. For such pathways pval, padj, NES, log2err are set to NA. You can try to increase the value of the argument nPermSimple (for example set it nPermSimple = 1000000)
-"""
+
 fgsea_dev <- fgsea(msigdb.mm.list, dev, nPermSimple = 100000)
-"""
-Warning messages:
-1: In preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
-  There are ties in the preranked stats (7.98% of the list).
-The order of those tied genes will be arbitrary, which may produce unexpected results.
-2: In fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
-  There were 3 pathways for which P-values were not calculated properly due to unbalanced (positive and negative) gene-level statistic values. For such pathways pval, padj, NES, log2err are set to NA. You can try to increase the value of the argument nPermSimple (for example set it nPermSimple = 1000000)
-"""
+
 fgsea_es_ordered <-fgsea_es[order(padj, -abs(NES)), ]
 fgsea_dev_ordered <-fgsea_dev[order(padj, -abs(NES)), ]
 
@@ -226,21 +197,11 @@ names(dev_rand) <-names(dev)
 
 #run enrichment on these randomised sets -best to loop and summarise many results- here just a test
 fgsea_es_rand <- fgsea(msigdb.mm.list, es_rand, maxSize=500,nPermSimple = 100000)
-"""
-Warning message:
-In preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
-  There are ties in the preranked stats (8.98% of the list).
-The order of those tied genes will be arbitrary, which may produce unexpected results.
-"""
 head(fgsea_es_rand[order(padj, -abs(NES)), ], n=20)
 
 
 #run enrichment on these randomised sets
 fgsea_dev_rand <- fgsea(msigdb.mm.list, dev_rand, maxSize=500,nPermSimple = 100000)
-"""Warning message:
-In preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
-  There are ties in the preranked stats (7.98% of the list).
-The order of those tied genes will be arbitrary, which may produce unexpected results."""
 head(fgsea_dev_rand[order(padj, -abs(NES)), ], n=20)
 
 

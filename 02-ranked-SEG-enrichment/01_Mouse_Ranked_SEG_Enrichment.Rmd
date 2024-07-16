@@ -167,12 +167,10 @@ hist(colSums(sce_one_norm_counts))
 
 #### Identify stably expressed genes in both the datasets/cell types
 ```{r}
-param = BiocParallel::MulticoreParam(workers = 12, progressbar = TRUE)
 sce_one_SEG <- scSEGIndex(sce_one_norm_counts, cell_type = colData(sce_one_fil)$Type , BPPARAM = param)
 ```
 
 ```{r}
-param = BiocParallel::MulticoreParam(workers = 12, progressbar = TRUE)
 sce_two_SEG <- scSEGIndex(sce_two_norm_counts, cell_type = colData(sce_two_fil)$stage , BPPARAM = param)
 ```
 
