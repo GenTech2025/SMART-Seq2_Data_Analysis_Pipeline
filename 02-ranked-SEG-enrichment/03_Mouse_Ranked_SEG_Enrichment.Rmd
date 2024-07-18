@@ -1,0 +1,220 @@
+---
+title: "ranked-SEG-compare-study"
+author: "S2599932"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, eval = FALSE)
+```
+
+## Using SEG ranking between two datasets  to find biological meaning
+
+---
+
+### Define File Paths
+```{r}
+dataset_one_dir <- "/home/s2599932/study-datasets/mouse-dataset/E-MTAB-2600/single_es_tximport.rds" # E-MTAB-2600
+dataset_two_dir <- "/home/s2599932/study-datasets/mouse-dataset/GSE121708/counts.txt" # GSE121708
+dataset_one_annotation_dir <- "/home/s2599932/study-datasets/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt"
+dataset_two_annotation_dir <- "/home/s2599932/study-datasets/mouse-dataset/GSE121708/sample_metadata.txt"
+```
+### Load Libraries
+```{r}
+library(Seurat)
+library(scMerge)
+library(SingleCellExperiment)
+library(ggplot2)
+library(dplyr)
+library(biomaRt)
+library(corrplot)
+library(scater)
+library(scran)
+library(biomaRt)
+library(dplyr)
+library(knitr)
+```
+
+---
+### Nomenclature
+- **raw_one from this point refers to E-MTAB-2600 which is mouse embryonic stem cell data set**
+- **raw_two from this point refers to GSE121708 which is mouse early development data set**
+---
+
+### Load the datasets and annotation file
+```{r}
+# Read the data sets
+raw_one <- readRDS(dataset_one_dir)
+
+# E-MTAB-2600 annotation
+annotation_one <- read.table(dataset_one_annotation_dir, sep = "\t", header = TRUE, row.names = "ERR")
+annotation_one <- annotation_one[match(colnames(raw_one$counts), rownames(annotation_one)), ]
+
+# Read the data sets
+raw_two <- read.table(dataset_two_dir, header = TRUE, row.names = 1)
+
+ # GSE121708 annotation
+annotation_two <- read.table(dataset_two_annotation_dir, sep = "\t", header = TRUE)
+annotation_two <- annotation_two[,c("id_rna","sample","stage","plate","embryo","lineage10x")]
+rownames(annotation_two) <- annotation_two$id_rna
+annotation_two <- annotation_two[match(colnames(raw_two), rownames(annotation_two)), ]
+
+raw_two <- raw_two[,annotation_two$id_rna]
+```
+### Creating the single cell experiment object
+```{r}
+ sce_one <- SingleCellExperiment(
+  assays = list(counts = as.matrix(raw_one$counts)),
+  colData = annotation_one
+)
+
+sce_two <- SingleCellExperiment(
+  assays = list(counts = as.matrix(raw_two)),
+  colData = annotation_two
+)
+```
+### Initial Quality Control
+
+---
+
+#### QC for first dataset
+```{r dataset_one}
+is_spike_one <- grepl("^ERCC",rownames(sce_one))
+mitogenes <- "ENSMUSG00000064336|ENSMUSG00000064337|ENSMUSG00000064338|ENSMUSG00000064339|ENSMUSG00000064340|ENSMUSG00000064341|ENSMUSG00000064342|ENSMUSG00000064343|ENSMUSG00000064344|ENSMUSG00000064345|ENSMUSG00000064346|ENSMUSG00000064347|ENSMUSG00000064348|ENSMUSG00000064349|ENSMUSG00000064350|ENSMUSG00000064351|ENSMUSG00000064352|ENSMUSG00000064353|ENSMUSG00000064354|ENSMUSG00000064355|ENSMUSG00000064356|ENSMUSG00000064357|ENSMUSG00000064358|ENSMUSG00000064359|ENSMUSG00000064360|ENSMUSG00000064361|ENSMUSG00000065947|ENSMUSG00000064363|ENSMUSG00000064364|ENSMUSG00000064365|ENSMUSG00000064366|ENSMUSG00000064367|ENSMUSG00000064368|ENSMUSG00000064369|ENSMUSG00000064370|ENSMUSG00000064371|ENSMUSG00000064372"
+is_mito_one <- grepl(mitogenes, rownames(sce_one))
+sce_one$qc_stats <- perCellQCMetrics(sce_one, subsets=list(ERCC=is_spike_one, Mt=is_mito_one))
+
+# Calculate the QC metrics based on which cells will be retained or eliminated
+libsize_drop_one <- isOutlier(sce_one$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop_one <- isOutlier(sce_one$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop_one <- isOutlier(sce_one$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+spike_drop_one <- isOutlier(sce_one$qc_stats$subsets_ERCC_percent, nmads = 3, type = "higher")
+
+# Save a copy of the unfiltered SCE object
+sce_one_copy <- sce_one
+
+# Drop the samples from the SCE object that does not meet the QC standards
+sce_one_fil <- sce_one[, !(libsize_drop_one | feature_drop_one | mito_drop_one | spike_drop_one)]
+filtered_cells_one <- colnames(sce_one_fil)
+```
+
+---
+
+#### QC for second dataset
+```{r dataset_two}
+is_spike_two <- grepl("^ERCC",rownames(sce_two))
+mitogenes <- "ENSMUSG00000064336|ENSMUSG00000064337|ENSMUSG00000064338|ENSMUSG00000064339|ENSMUSG00000064340|ENSMUSG00000064341|ENSMUSG00000064342|ENSMUSG00000064343|ENSMUSG00000064344|ENSMUSG00000064345|ENSMUSG00000064346|ENSMUSG00000064347|ENSMUSG00000064348|ENSMUSG00000064349|ENSMUSG00000064350|ENSMUSG00000064351|ENSMUSG00000064352|ENSMUSG00000064353|ENSMUSG00000064354|ENSMUSG00000064355|ENSMUSG00000064356|ENSMUSG00000064357|ENSMUSG00000064358|ENSMUSG00000064359|ENSMUSG00000064360|ENSMUSG00000064361|ENSMUSG00000065947|ENSMUSG00000064363|ENSMUSG00000064364|ENSMUSG00000064365|ENSMUSG00000064366|ENSMUSG00000064367|ENSMUSG00000064368|ENSMUSG00000064369|ENSMUSG00000064370|ENSMUSG00000064371|ENSMUSG00000064372"
+is_mito_two <- grepl(mitogenes, rownames(sce_two))
+sce_two$qc_stats <- perCellQCMetrics(sce_two, subsets=list(ERCC=is_spike_two, Mt=is_mito_two))
+
+# Calculate the QC metrics based on which cells will be retained or eliminated
+libsize_drop_two <- isOutlier(sce_two$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop_two <- isOutlier(sce_two$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop_two <- isOutlier(sce_two$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+spike_drop_two <- isOutlier(sce_two$qc_stats$subsets_ERCC_percent, nmads = 3, type = "higher")
+
+# Save a copy of the unfiltered SCE object
+sce_two_copy <- sce_two
+
+# Drop the samples from the SCE object that does not meet the QC standards
+sce_two_fil <- sce_two[, !(libsize_drop_two | feature_drop_two | mito_drop_two | spike_drop_two)]
+filtered_cells_two <- colnames(sce_two_fil)
+```
+
+> Point to Note: The second dataset doesnt have some ERCC spike ins and Mitochondrial genes
+
+---
+
+### Normalization (Deconvolution normalization using scran)
+
+```{r}
+# For first data set
+clusters_one <- quickCluster(sce_one_fil)
+sce_one_fil <- computeSumFactors(sce_one_fil, clusters = clusters_one)
+sce_one_fil <- logNormCounts(sce_one_fil)
+
+# For second data set
+clusters_two <- quickCluster(sce_two_fil)
+sce_two_fil <- computeSumFactors(sce_two_fil, clusters = clusters_two)
+sce_two_fil <- logNormCounts(sce_two_fil)
+```
+
+#### Misellaneous steps - (No idea why it was done)
+```{r fig.height=8,fig.width=10}
+# Compute column sums from the raw counts
+colsums <- colSums(assay(sce_one_fil, "counts")) # Needs to be calculated from the same SCE object
+hist(colsums, breaks = 40)
+
+# Verify the length of colsums matches the number of columns in the assay
+length(colsums) == ncol(sce_one_fil)
+```
+
+```{r fig.height=8,fig.width=10}
+sce_two_norm_counts <- logcounts(sce_two_fil)[,colsums>100000]
+hist(colSums(sce_two_norm_counts))
+```
+
+```{r fig.height=8,fig.width=10}
+sce_one_norm_counts <- logcounts(sce_one_fil)[,colsums>100000]
+hist(colSums(sce_one_norm_counts))
+```
+
+
+```{r NOT_RUN_YET}
+# Left an annotation step
+```
+
+#### Identify stably expressed genes in both the datasets/cell types
+```{r}
+sce_one_SEG <- scSEGIndex(sce_one_norm_counts, cell_type = colData(sce_one_fil)$Type , BPPARAM = param)
+```
+
+```{r}
+sce_two_SEG <- scSEGIndex(sce_two_norm_counts, cell_type = colData(sce_two_fil)$stage , BPPARAM = param)
+```
+
+#### Save the identified SEGs
+```{r}
+write.csv(sce_one_SEG, file = "./sce_one_SEG_EMTAB2600.csv", row.names = TRUE)
+write.csv(sce_two_SEG, file = "./sce_two_SEG_GSE121708.csv", row.names = TRUE)
+```
+
+#### Check the columns
+```{r}
+colnames(sce_one_SEG)
+```
+```{r}
+colnames(sce_two_SEG)
+```
+
+#### Sort the dataframes in descending order of sgIdx
+```{r}
+sce_one_SEG <- sce_one_SEG %>% arrange(desc(segIdx))
+sce_two_SEG <- sce_two_SEG %>% arrange(desc(segIdx))
+```
+
+#### Extract the top 1000 SEGs from both datasets
+```{r}
+# Extract the from the first dataset
+sce_one_top_1000 <- head(sce_one_SEG, 1000)
+sce_one_top_1000_genes <- rownames(sce_one_top_1000)
+
+# Extract from the second dataset
+sce_two_top_1000 <- head(sce_two_SEG, 1000)
+sce_two_top_1000_genes <- rownames(sce_two_top_1000)
+```
+
+### CODE STILL IN EXPERIMENTAL PHASE
+#### Add ranks to the dataframes
+```{r}
+# Is it really necessary? It is basically the position of the gene in the df
+sce_one_top_1000$rank_one <- rank(-1 * sce_one_top_1000$segIdx, ties.method = "average")
+sce_two_top_1000$rank_two <- rank(-1 * sce_two_top_1000$segIdx, ties.method = "average")
+```
+
+#### Calculate the Rank Difference
+```{r}
+
+```
+

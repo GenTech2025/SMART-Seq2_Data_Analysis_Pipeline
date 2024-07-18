@@ -30,7 +30,6 @@ library(scran)
 library(biomaRt)
 library(dplyr)
 library(knitr)
-library(fgsea)
 ```
 
 ## Read in the data and and annotation information
@@ -163,7 +162,7 @@ sce_fil_all_genes <- runPCA(sce_fil_all_genes, subset_row = rownames(sce_fil_all
 sce_fil_mSEG <- runPCA(sce_fil_mSEG, subset_row = hSEG)
 ```
 
-```{r}
+```{r fig.height=6,fig.width=8}
 cell_types <- colData(sce_fil)$Cell_Type
 
 # Extract the PCA results
@@ -211,7 +210,7 @@ sum(is.na(rowSums(logcounts(sce_non_hESC))))
 sum(is.na(colSums(logcounts(sce_non_hESC))))
 ```
 
-### Extract and visualize the library sizes for Human Embryonic Stem Cell subset
+### Extract and visualize the library sizes for Human Embryonic Stem Cell subset (Optional)
 ```{r}
 # Calculate the sum of columns
 colsums <- colSums(assay(sce_hESC, "counts"))
@@ -226,7 +225,7 @@ sce_hESC_norm_counts <- logcounts(sce_hESC)[,colsums>100000]
 hist(colSums(sce_hESC_norm_counts))
 ```
 
-### Extract and visualize the library sizes for non hESC subset
+### Extract and visualize the library sizes for non hESC subset (Optional)
 ```{r}
 # Calculate the sum of columns
 colsums1 <- colSums(assay(sce_non_hESC, "counts"))
@@ -241,15 +240,25 @@ sce_non_hESC_norm_counts <- logcounts(sce_non_hESC)[,colsums>100000]
 hist(colSums(sce_non_hESC_norm_counts))
 ```
 
+### Arrange the dataframes (NECESSARY)
+```{r}
+# Order the rownames of sce_hESC
+sce_hESC <- sce_hESC[order(rownames(sce_hESC), decreasing = FALSE), ]
+
+# Order the rownames of sce_non_hESC
+sce_non_hESC <- sce_non_hESC[order(rownames(sce_non_hESC), decreasing = FALSE), ]
+```
+
+
 ## For the nex part where the stably expressed genes are to be identified from the subsetted datasets the issue is that with the current dataset (GSE36552) when subetted into two objects one of the objects only contain cells of one type which causes error in the scSEGIndex() function during calculation of F-Statistics
 - remove the cell type parameter from the scSEGIndex() function.
 
 ### Identify the SEGs without F-Staistics
 ```{r}
 # Compute SEGs for non human embryonic stem cells
-sce_non_hESC_seg <- scSEGIndex(sce_non_hESC_norm_counts, return_all = TRUE)
+sce_non_hESC_seg <- scSEGIndex(exprs(sce_hESC), return_all = TRUE)
 # Compute SEGs for human embryonic stem cells
-sce_hESC_seg <- scSEGIndex(sce_hESC_norm_counts, return_all = TRUE)
+sce_hESC_seg <- scSEGIndex(exprs(sce_non_hESC), return_all = TRUE)
 ```
 ### Check the dimensions of the SEG data frames
 ```{r}
@@ -260,6 +269,20 @@ print(dim(sce_non_hESC_seg))
 ```{r}
 print(colnames(sce_hESC_seg))
 print(colnames(sce_non_hESC_seg))
+```
+
+### Ommit the NA values (Remove later)
+```{r eval=FALSE}
+# Remove rows with NA values in the segIdx column
+sce_hESC_seg <- sce_hESC_seg[!is.na(sce_hESC_seg$segIdx), ]
+sce_non_hESC_seg <- sce_non_hESC_seg[!is.na(sce_non_hESC_seg$segIdx), ]
+```
+
+
+### Save the identified stably expressed genes
+```{r}
+write.csv(sce_hESC_seg, file = "./hESC_seg_GSE36552.csv", row.names = TRUE)
+write.csv(sce_non_hESC_seg, file = "./non_hESC_seg_GSE36552.csv", row.names = TRUE)
 ```
 
 ### Arrange the dataframe in descending order of stability value (segIdx)
@@ -293,11 +316,11 @@ sce_non_hESC_seg$segIdx_non_hESCvshESC <- sce_non_hESC_seg$segIdx_non_hESC - sce
 
 ### Rearrange the dataframes according to segIdx scores of the data frames
 ```{r}
-# Arrange res_2i_ordered in descending order of segIdx
+
 sce_hESC_seg <- sce_hESC_seg %>% 
   arrange(desc(segIdx))
 
-# Arrange res_serum_ordered in descending order of segIdx
+
 sce_non_hESC_seg <- sce_non_hESC_seg %>% 
   arrange(desc(segIdx))
 ```
@@ -332,42 +355,34 @@ write.csv(sce_hESC_seg_1000_lst,file = "./sce_hESC_seg_1000_lst.csv")
 write.csv(sce_non_hESC_seg_1000_lst,file = "./sce_non_hESC_seg_1000_lst.csv")
 ```
 
-### Map the ensembl IDs to gene symbols
+
+
+### Simpler way to map the ensembl IDs to gene symbols
 ```{r}
-# Use biomaRt to map Ensembl IDs to gene symbols
-ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
-ensembl_ids_hESC <- names(sce_hESC_seg_1000_lst)
-ensembl_ids_non_hESC <- names(sce_non_hESC_seg_1000_lst)
+# Convert Ensembl IDs to gene symbols
+ensembl <- useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl")
+gene_annotations_hESC <- getBM(attributes = c('ensembl_gene_id', 'external_gene_name'),
+                          filters = 'ensembl_gene_id',
+                          values = rownames(sce_hESC_seg_1000),
+                          mart = ensembl)
+gene_annotations_non_hESC <- getBM(attributes = c('ensembl_gene_id', 'external_gene_name'),
+                          filters = 'ensembl_gene_id',
+                          values = rownames(sce_non_hESC_seg_1000),
+                          mart = ensembl)
 
-gene_mapping_hESC <- getBM(attributes = c("ensembl_gene_id", "hgnc_symbol"),
-                           filters = "ensembl_gene_id",
-                           values = ensembl_ids_hESC,
-                           mart = ensembl)
-gene_mapping_non_hESC <- getBM(attributes = c("ensembl_gene_id", "hgnc_symbol"),
-                               filters = "ensembl_gene_id",
-                               values = ensembl_ids_non_hESC,
-                               mart = ensembl)
+sce_hESC_seg_1000$external_gene_name <- gene_annotations_hESC$external_gene_name[match(rownames(sce_hESC_seg_1000), gene_annotations_hESC$ensembl_gene_id)]
+sce_non_hESC_seg_1000$external_gene_name <- gene_annotations_non_hESC$external_gene_name[match(rownames(sce_non_hESC_seg_1000), gene_annotations_non_hESC$ensembl_gene_id)]
+```
 
-# Create a named vector with gene symbols as names and ranking values as values
-gene_mapping_hESC <- gene_mapping_hESC[gene_mapping_hESC$hgnc_symbol != "", ]  # Remove entries without a gene symbol
-gene_mapping_non_hESC <- gene_mapping_non_hESC[gene_mapping_non_hESC$hgnc_symbol != "", ]  # Remove entries without a gene symbol
-
-# Merge with the ranking vectors
-mapped_hESC <- sce_hESC_seg_1000_lst[gene_mapping_hESC$ensembl_gene_id]
-names(mapped_hESC) <- gene_mapping_hESC$hgnc_symbol
-
-mapped_non_hESC <- sce_non_hESC_seg_1000_lst[gene_mapping_non_hESC$ensembl_gene_id]
-names(mapped_non_hESC) <- gene_mapping_non_hESC$hgnc_symbol
-
-# Remove any NA values from the vectors
-mapped_hESC <- na.omit(mapped_hESC)
-mapped_non_hESC <- na.omit(mapped_non_hESC)
+### Since not every ensembl ID mapped to a gene name we need to omit those rows in the dataframe
+```{r}
+sce_hESC_seg_1000 <- filter(sce_hESC_seg_1000, external_gene_name != "")
+sce_non_hESC_seg_1000 <- filter(sce_non_hESC_seg_1000, external_gene_name != "")
 ```
 
 
 ### Download data from MsDB
 ```{r}
-# Load the packages
 library(fgsea)
 library(msigdb)
 library(ExperimentHub)
@@ -383,21 +398,65 @@ msigdb.hs = appendKEGG(msigdb.hs) # add KEGG
 msigdb.hs.list <- geneIds(msigdb.hs)
 
 # Optional: Save the list to a file for future use
-save(msigdb.hs.list, file = "msigdb_hs_list.RData")
+# save(msigdb.hs.list, file = "msigdb_hs_list.RData")
+
+```
 
 
+### Prepare the input for fgsea
+```{r}
+# Prepare the ranked lists
+sce_hESC_ordered1000_lst <- setNames(sce_hESC_seg_1000$segIdx_hESCvsnon_hESC, sce_hESC_seg_1000$external_gene_name)
+sce_non_hESC_ordered1000_lst <- setNames(sce_non_hESC_seg_1000$segIdx_non_hESCvshESC, sce_non_hESC_seg_1000$external_gene_name)
+
+```
+
+
+```{r}
+# Convert the ranked lists to named numeric vectors
+mapped_hESC <- unlist(sce_hESC_ordered1000_lst)
+names(mapped_hESC) <- names(sce_hESC_ordered1000_lst)
+
+mapped_non_hESC <- unlist(sce_non_hESC_ordered1000_lst)
+names(mapped_non_hESC) <- names(sce_non_hESC_ordered1000_lst)
 ```
 
 
 ### Do the FGSEA analysis
 ```{r}
-# Perform FGSEA analysis with the human MSigDB list
+# Perform FGSEA analysis with the human MSigDB list for hESC
 fgsea_hESC_seg_1000_lstr <- fgsea(pathways = msigdb.hs.list, stats = mapped_hESC, nPermSimple = 200000)
-fgsea_hESC_seg_1000_lstr <- fgsea_hESC_seg_1000_lstr[order(padj, -abs(NES)), ]
+fgsea_hESC_seg_1000_lstr <- fgsea_hESC_seg_1000_lstr[order(fgsea_hESC_seg_1000_lstr$padj, -abs(fgsea_hESC_seg_1000_lstr$NES)), ]
 
+# Perform FGSEA analysis with the human MSigDB list for non-hESC
 fgsea_non_hESC_seg_1000_lstr <- fgsea(pathways = msigdb.hs.list, stats = mapped_non_hESC, nPermSimple = 200000)
-fgsea_non_hESC_seg_1000_lstr <- fgsea_non_hESC_seg_1000_lstr[order(padj, -abs(NES)), ]
+fgsea_non_hESC_seg_1000_lstr <- fgsea_non_hESC_seg_1000_lstr[order(fgsea_non_hESC_seg_1000_lstr$padj, -abs(fgsea_non_hESC_seg_1000_lstr$NES)), ]
+
 ```
+
+#### WARNING BELOW
+
+> # Perform FGSEA analysis with the human MSigDB list for hESC
+> fgsea_hESC_seg_1000_lstr <- fgsea(pathways = msigdb.hs.list, stats = mapped_hESC, nPermSimple = 200000)
+Warning in preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
+  There are ties in the preranked stats (2.54% of the list).
+The order of those tied genes will be arbitrary, which may produce unexpected results.
+Warning in preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
+  There are duplicate gene names, fgsea may produce unexpected results.
+Warning in fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
+  There were 40 pathways for which P-values were not calculated properly due to unbalanced (positive and negative) gene-level statistic values. For such pathways pval, padj, NES, log2err are set to NA. You can try to increase the value of the argument nPermSimple (for example set it nPermSimple = 2000000)
+Warning in fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
+  For some of the pathways the P-values were likely overestimated. For such pathways log2err is set to NA.
+> fgsea_hESC_seg_1000_lstr <- fgsea_hESC_seg_1000_lstr[order(fgsea_hESC_seg_1000_lstr$padj, -abs(fgsea_hESC_seg_1000_lstr$NES)), ]
+> 
+> # Perform FGSEA analysis with the human MSigDB list for non-hESC
+> fgsea_non_hESC_seg_1000_lstr <- fgsea(pathways = msigdb.hs.list, stats = mapped_non_hESC, nPermSimple = 200000)
+Warning in preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
+  There are ties in the preranked stats (1.65% of the list).
+The order of those tied genes will be arbitrary, which may produce unexpected results.
+Warning in fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
+  There were 16 pathways for which P-values were not calculated properly due to unbalanced (positive and negative) gene-level statistic values. For such pathways pval, padj, NES, log2err are set to NA. You can try to increase the value of the argument nPermSimple (for example set it nPermSimple = 2000000)
+> fgsea_non_hESC_seg_1000_lstr <- fgsea_non_hESC_seg_1000_lstr[order(fgsea_non_hESC_seg_1000_lstr$padj, -abs(fgsea_non_hESC_seg_1000_lstr$NES)), ]
 
 ### Since the adjusted p-values for both the dataframe are very high here are some trouble shooting steps to ensure that the issue is not with code
 ```{r}
@@ -406,36 +465,56 @@ overlap_non_hESC <- intersect(names(mapped_non_hESC), unlist(msigdb.hs.list))
 cat("Overlap for hESC:", length(overlap_hESC), "\n")
 cat("Overlap for non-hESC:", length(overlap_non_hESC), "\n")
 ```
-> The high adjusted p-values are likely not due to insufficient overlap as overlap between ranked lists and the gene sets is reasonably good (619 for hESC and 642 for non-hESC)
+> The high adjusted p-values are likely not due to insufficient overlap as overlap between ranked lists and the gene sets is reasonably good (818 for hESC and 869 for non-hESC)
 
----
-Given your reasonable overlap, the focus should be on the quality and appropriateness of the ranked list, the relevance of the gene sets, and the statistical power of the analysis. By carefully examining these factors and potentially increasing the number of permutations or focusing on a subset of gene sets, you can better understand why the adjusted p-values are high and take steps to address the issue. If you continue to face challenges, consulting with a bioinformatics expert may provide additional insights.
----
+
 
 ```{r fig.width=8,fig.height=6}
 hist(fgsea_hESC_seg_1000_lstr$pval, breaks=50, main="P-value distribution for hESC", xlab="P-value")
 hist(fgsea_non_hESC_seg_1000_lstr$pval, breaks=50, main="P-value distribution for non-hESC", xlab="P-value")
 ```
 
----
-The histograms of p-value distributions for both hESC and non-hESC show a roughly uniform distribution of p-values. This suggests that there is no strong signal of enrichment in the data, as significant enrichment would typically result in a higher frequency of low p-values (near 0).
----
+
 
 #### just use hallmark gene sets
 ```{r}
 # Example: focusing on a specific collection like Hallmark gene sets
 hallmark_gene_sets <- msigdb.hs.list[grep("^HALLMARK_", names(msigdb.hs.list))]
-fgsea_hESC_seg_1000_lstr <- fgsea(pathways = hallmark_gene_sets, stats = mapped_hESC, nPermSimple = 200000)
-fgsea_non_hESC_seg_1000_lstr <- fgsea(pathways = hallmark_gene_sets, stats = mapped_non_hESC, nPermSimple = 200000)
 
-fgsea_hESC_seg_1000_lstr <- fgsea_hESC_seg_1000_lstr[order(padj, -abs(NES)), ]
-fgsea_non_hESC_seg_1000_lstr <- fgsea_non_hESC_seg_1000_lstr[order(padj, -abs(NES)), ]
+hall_fgsea_hESC_seg_1000_lstr <- fgsea(pathways = hallmark_gene_sets, stats = mapped_hESC, nPermSimple = 200000)
+hall_fgsea_non_hESC_seg_1000_lstr <- fgsea(pathways = hallmark_gene_sets, stats = mapped_non_hESC, nPermSimple = 200000)
 
-print(fgsea_hESC_seg_1000_lstr[1:20,])
-print(fgsea_non_hESC_seg_1000_lstr[1:20,])
+hall_fgsea_hESC_seg_1000_lstr <- hall_fgsea_hESC_seg_1000_lstr[order(padj, -abs(NES)), ]
+hall_fgsea_non_hESC_seg_1000_lstr <- hall_fgsea_non_hESC_seg_1000_lstr[order(padj, -abs(NES)), ]
+
 ```
 
 
+```{r}
+# Load jsonlite package
+library(jsonlite)
+
+# Function to convert list columns to JSON strings
+convert_list_columns_to_json <- function(df) {
+  list_columns <- sapply(df, is.list)
+  df[list_columns] <- lapply(df[list_columns], function(col) {
+    sapply(col, jsonlite::toJSON, auto_unbox = TRUE)
+  })
+  return(df)
+}
+
+# Convert list columns for each data frame
+fgsea_hESC_seg_1000_lstr <- convert_list_columns_to_json(as.data.frame(fgsea_hESC_seg_1000_lstr))
+fgsea_non_hESC_seg_1000_lstr <- convert_list_columns_to_json(as.data.frame(fgsea_non_hESC_seg_1000_lstr))
+hall_fgsea_hESC_seg_1000_lstr <- convert_list_columns_to_json(as.data.frame(hall_fgsea_hESC_seg_1000_lstr))
+hall_fgsea_non_hESC_seg_1000_lstr <- convert_list_columns_to_json(as.data.frame(hall_fgsea_non_hESC_seg_1000_lstr))
+
+# Write each data frame to CSV files
+write.csv(fgsea_hESC_seg_1000_lstr, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/fgsea_results/fgsea_hESC_seg_1000_results.csv", row.names = FALSE)
+write.csv(fgsea_non_hESC_seg_1000_lstr, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/fgsea_results/fgsea_non_hESC_seg_1000_results.csv", row.names = FALSE)
+write.csv(hall_fgsea_hESC_seg_1000_lstr, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/fgsea_results/hallmark_fgsea_hESC_seg_1000_results.csv", row.names = FALSE)
+write.csv(hall_fgsea_non_hESC_seg_1000_lstr, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/fgsea_results/hallmark_fgsea_non_hESC_seg_1000_results.csv", row.names = FALSE)
+```
 
 
 

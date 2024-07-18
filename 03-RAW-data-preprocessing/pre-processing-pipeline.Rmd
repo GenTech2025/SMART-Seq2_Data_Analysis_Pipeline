@@ -240,6 +240,37 @@ write.csv(t1, file = "./GSE36552_counts.csv", row.names = TRUE)
 
 
 
+## Use Rsubread to create counts matrix
+```{r}
+# Load the Rsubread package
+library(Rsubread)
+
+# Define the path to your BAM files and the GTF annotation file
+bam_files <- list.files(path = "/scratch1/s2599932/E-MTAB-3929/mapped-reads", pattern = "\\.bam$", full.names = TRUE)
+gtf_file <- "/scratch1/s2599932/pre-processing/reference-genome/gtf/Homo_sapiens.GRCh38.112.gtf"
+
+# Run featureCounts to generate the counts matrix
+counts <- featureCounts(files = bam_files, 
+                        annot.ext = gtf_file,
+                        isGTFAnnotationFile = TRUE, 
+                        GTF.featureType = "exon",
+                        GTF.attrType = "gene_id",
+                        useMetaFeatures = TRUE,
+                        nthreads = 10) # Adjust the number of threads as needed
+
+# Extract the counts matrix from the output
+counts_matrix <- counts$counts
+
+# Define the output directory
+output_dir <- "/scratch1/s2599932/E-MTAB-3929/counts"
+dir.create(output_dir, showWarnings = FALSE)
+
+# Save the counts matrix to a file
+write.csv(counts_matrix, file = file.path(output_dir, "counts_matrix.csv"), row.names = TRUE)
+
+# Print a message indicating successful completion
+cat("Counts matrix has been successfully created and saved to", file.path(output_dir, "counts_matrix.csv"))
+```
 
 
 
