@@ -470,8 +470,8 @@ cat("Overlap for non-hESC:", length(overlap_non_hESC), "\n")
 
 
 ```{r fig.width=8,fig.height=6}
-hist(fgsea_hESC_seg_1000_lstr$pval, breaks=50, main="P-value distribution for hESC", xlab="P-value")
-hist(fgsea_non_hESC_seg_1000_lstr$pval, breaks=50, main="P-value distribution for non-hESC", xlab="P-value")
+hist(fgsea_hESC_seg_1000_lstr$padj, breaks=50, main="Adjusted P-value distribution for hESC", xlab="P-value")
+hist(fgsea_non_hESC_seg_1000_lstr$padj, breaks=50, main="Adjusted P-value distribution for non-hESC", xlab="P-value")
 ```
 
 
@@ -516,5 +516,38 @@ write.csv(hall_fgsea_hESC_seg_1000_lstr, file = "/home/s2599932/MSc_DSB_Disserta
 write.csv(hall_fgsea_non_hESC_seg_1000_lstr, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/fgsea_results/hallmark_fgsea_non_hESC_seg_1000_results.csv", row.names = FALSE)
 ```
 
+
+### Perform david enrichment on the most changing genes (absolute difference rather than directional change)
+- i.e. genes whose rank difference are the highest
+```{r}
+# Add columns for absolute rank differences
+sce_hESC_seg_1000$abs_segIdx_hESCvsnon_hESC <- abs(sce_hESC_seg_1000$segIdx_hESCvsnon_hESC)
+sce_non_hESC_seg_1000$abs_segIdx_non_hESCvshESC <- abs(sce_non_hESC_seg_1000$segIdx_non_hESCvshESC)
+
+# Sort the data frames by the absolute rank difference columns in descending order
+sce_hESC_sorted <- sce_hESC_seg_1000[order(sce_hESC_seg_1000$abs_segIdx_hESCvsnon_hESC, decreasing = TRUE), ]
+sce_non_hESC_sorted <- sce_non_hESC_seg_1000[order(sce_non_hESC_seg_1000$abs_segIdx_non_hESCvshESC, decreasing = TRUE), ]
+
+# Select the top 200 genes
+top_200_hESC <- sce_hESC_sorted[1:200, ]
+top_200_non_hESC <- sce_non_hESC_sorted[1:200, ]
+
+# Extract the gene names for DAVID functional enrichment analysis
+genes_for_david_hESC <- top_200_hESC$gene
+genes_for_david_non_hESC <- top_200_non_hESC$gene
+
+# Ensure no NA values in the gene lists
+genes_for_david_hESC <- genes_for_david_hESC[!is.na(genes_for_david_hESC)]
+genes_for_david_non_hESC <- genes_for_david_non_hESC[!is.na(genes_for_david_non_hESC)]
+```
+
+```{r}
+# Save the gene lists to files for DAVID input
+write.table(genes_for_david_hESC, "top_200_hESC_genes_for_david.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+write.table(genes_for_david_non_hESC, "top_200_non_hESC_genes_for_david.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+
+# Save the hSEG list to be used as background
+write.table(hSEG, "hSEG_list.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+```
 
 
