@@ -612,7 +612,7 @@ dim(sce_one_df_unique)
 dim(sce_two_df_unique)
 ```
 
-#### Only keep the first occurence of a gene (not used)
+#### Only keep the first occurence of a gene (used)
 ```{r}
 # Load necessary libraries
 library(dplyr)
@@ -747,8 +747,8 @@ cat("Overlap for non-hESC:", length(overlap_two), "\n")
 ```
 ### Create p-value plot disturbing
 ```{r}
-hist(fgsea_one$pval, breaks=50, main="Adjusted P-value distribution for one", xlab="P-value")
-hist(fgsea_two$pval, breaks=50, main="Adjusted P-value distribution for two", xlab="P-value")
+hist(fgsea_one$pval, breaks=50, main="P-value distribution for one", xlab="P-value")
+hist(fgsea_two$pval, breaks=50, main="P-value distribution for two", xlab="P-value")
 ```
 
 ### Create adjusted p-value plot distributing

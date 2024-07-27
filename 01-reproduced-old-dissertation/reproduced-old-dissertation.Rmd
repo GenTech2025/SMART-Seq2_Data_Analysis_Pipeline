@@ -23,10 +23,6 @@ library(biomaRt)
 library(corrplot)
 library(scater)
 library(scran)
-
-library(biomaRt)
-library(dplyr)
-library(knitr)
 ```
 
 

@@ -316,13 +316,16 @@ fi
 
 ### Read in the unprocessed counts matrix
 ```{r}
-t1 <- read.table("/scratch1/s2599932/E-MTAB-3929/counts/all_samples_featureCounts.txt",header = TRUE, row.names = 1)
+library(tidyverse)
+library(biomaRt)
+
+t1 <- read.table("/scratch1/s2599932/GSE75748/fastq-files/counts/all_samples_featureCounts.txt",header = TRUE, row.names = 1)
 ```
 
 
 ### Clean the counts matrix in R from ENA
 ```{r}
-cleaned_colnames <- gsub(".*\\.([S|X]RR[0-9]+)_.*", "\\1", colnames(t1)) # Just extract the run accession use it as 
+cleaned_colnames <- gsub(".*\\.([S|X]RR[0-9]+)_.*", "\\1", colnames(t1))
 colnames(t1) <- cleaned_colnames
 
 t1 <- t1 %>% dplyr::select(-all_of(c("Chr","Start","End","Strand","Length")))
@@ -336,17 +339,82 @@ colnames(t1) <- cleaned_colnames
 t1 <- t1 %>% dplyr::select(-all_of(c("Chr","Start","End","Strand","Length")))
 ```
 
-
+### Save the counts file
 ```{r}
-write.csv(t1, file = "/home/s2599932/study-datasets/E-MTAB-3929_self_processed/E-MTAB-3929_counts.csv", row.names = TRUE)
+write.csv(t1, file = "/home/s2599932/study-datasets/GSE75748/GSE75748_counts.csv", row.names = TRUE)
+```
+
+### Read in the counts data
+```{r}
+counts <- read.csv("../../study-datasets/human-dataset/GSE75748/GSE75748_counts.csv", header = TRUE, row.names = 1)
+```
+
+### Check which rows have a sum of zero (i.e. genes that are not expressed in any samples)
+```{r}
+# Calculate row sums
+row_sums <- rowSums(counts)
+
+# Identify rows with a zero sum
+zero_sum_rows <- row_sums == 0
+
+# Display the rows with a zero sum
+rows_with_zero_sum <- counts[zero_sum_rows, ]
+print("Rows with a zero sum:")
+print(length(rownames(rows_with_zero_sum)))
+
+# Save the list of ensembl IDs of genes that have zero expression in all samples
+zero_expression_genes <- rownames(rows_with_zero_sum)
+```
+
+## Map the Ensembl IDs to Gene Biotypes and Gene Symbols using Biomart
+```{r}
+# Use the Ensembl database
+ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+
+ensembl_ids <- rownames(counts)
+
+# Retrieve the information from Ensembl database
+gene_info <- getBM(
+    attributes = c("ensembl_gene_id", "external_gene_name", "gene_biotype"),
+    filters = "ensembl_gene_id",
+    values = ensembl_ids,
+    mart = ensembl
+)
 ```
 
 
+```{r}
+# Save the lncRNA values
+lncRNA_df<- gene_info %>%
+  filter(gene_biotype == "lncRNA")
+
+# Check how many of the lncRNA ensemblIDs doesnt have a gene symbol
+empty <- sum(lncRNA_df$external_gene_name == "")
+print(empty)
+```
+
+## Subset the counts data frame to only contain lncRNA genes
+```{r}
+lncRNA_counts <- counts[lncRNA_df$ensembl_gene_id,]
+```
 
 
+## Check for lncRNA genes that has no expression in any samples
+```{r}
+lnc_row_sums <- rowSums(lncRNA_counts)
 
+# Identify rows with a zero sum
+lnc_zero_sum_rows <- lnc_row_sums == 0
 
+# Display the rows with a zero sum
+lnc_rows_with_zero_sum <- lncRNA_counts[lnc_zero_sum_rows, ]
+print("Rows with a zero sum:")
+print(length(rownames(lnc_rows_with_zero_sum)))
 
+# Save the list of ensembl IDs of genes that have zero expression in all samples
+lnc_zero_expression_genes <- rownames(lnc_rows_with_zero_sum)
+```
 
 
 
