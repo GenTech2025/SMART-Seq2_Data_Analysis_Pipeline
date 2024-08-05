@@ -12,8 +12,8 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 # Start
 
 ```{r}
-data_dir <- "/home/s2599932/study-datasets/E-MTAB-3929_self_processed/E-MTAB-3929_counts.csv"
-targets_dir <- "/home/s2599932/study-datasets/E-MTAB-3929_arrayexpress_downloaded/E-MTAB-3929_targets.csv"
+data_dir <- "/home/s2599932/study-datasets/human-dataset/GSE36552/GSE36552_counts.csv"
+targets_dir <- "/home/s2599932/study-datasets/human-dataset/GSE36552/GSE36552_targets.csv"
 ```
 
 
@@ -21,15 +21,11 @@ targets_dir <- "/home/s2599932/study-datasets/E-MTAB-3929_arrayexpress_downloade
 library(Seurat)
 library(scMerge)
 library(SingleCellExperiment)
-library(ggplot2)
-library(dplyr)
+library(tidyverse)
 library(biomaRt)
 library(corrplot)
 library(scater)
 library(scran)
-library(biomaRt)
-library(dplyr)
-library(knitr)
 ```
 
 ## Read in the data and and annotation information
@@ -579,6 +575,73 @@ write.table(genes_for_david_non_hESC, "top_200_non_hESC_genes_for_david.txt", qu
 
 # Save the hSEG list to be used as background
 write.table(hSEG, "hSEG_list.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+```
+
+
+## Gene Ontology Enrichment Analysis (Optional)
+```{r}
+# Load required libraries
+library(clusterProfiler)
+library(tidyverse)
+library(org.Hs.eg.db)
+library(scMerge)
+
+# Choose the top 250 highest changing genes between the two SCE objects
+one_sorted <- sce_one_df_top1000 %>%
+  arrange(segIdx_one_vs_two) %>%
+  slice_head(n = 250)
+
+two_sorted <- sce_two_df_top1000 %>%
+  arrange(segIdx_two_vs_one) %>%
+  slice_head(n = 250)
+
+# Store the names of the genes
+gene_list_one <- rownames(one_sorted)
+gene_list_two <- rownames(two_sorted)
+
+# Load in the human stably expressed gene list from scMerge
+data("segList_ensemblGeneID", package = "scMerge")
+hSEG <- segList_ensemblGeneID$human$human_scSEG
+
+# Perform the enrichment analysis
+genes <- gene_list_one
+background_genes <- hSEG
+
+
+# Verify the overlap between input genes and background genes
+common_genes <- intersect(gene_list_one, hSEG)
+length_common_genes <- length(common_genes)
+cat("Number of common genes:", length_common_genes, "\n")
+
+
+ego <- enrichGO(
+  gene = genes,
+  universe = background_genes,      # Custom background list
+  OrgDb = org.Hs.eg.db,             # Organism database
+  keyType = "ENSEMBL",              # Type of gene ID (ENSEMBL)
+  ont = "BP",                       # Ontology (BP: Biological Process, MF: Molecular Function, CC: Cellular Component)
+  pAdjustMethod = "BH",             # p-value adjustment method (e.g., "BH" for Benjamini-Hochberg)
+  pvalueCutoff = 0.5,               # p-value cutoff
+  qvalueCutoff = 0.5                # q-value cutoff
+)
+
+# Convert results to data frame
+ego_df <- as.data.frame(ego)
+
+
+# Check if `ego` contains results before plotting
+if (nrow(ego_df) > 0) {
+  # Plot results (bar plot) using ggplot2 for better visualization
+  ggplot(ego_df, aes(x = reorder(Description, -Count), y = Count)) +
+    geom_bar(stat = "identity") +
+    labs(title = "Top GO Terms by Count",
+         x = "GO Term",
+         y = "Gene Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+} else {
+  print("No significant GO terms found.")
+}
+
 ```
 
 

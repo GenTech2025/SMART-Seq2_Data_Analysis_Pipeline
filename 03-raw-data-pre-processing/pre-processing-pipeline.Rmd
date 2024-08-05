@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 - Trimmomatic : version 0.39
 - STAR : version 2.7.10a
 - featureCounts : version 2.0.3
-- parallel : version 3
+- parallel : 20210822+ds
 
 ---
 

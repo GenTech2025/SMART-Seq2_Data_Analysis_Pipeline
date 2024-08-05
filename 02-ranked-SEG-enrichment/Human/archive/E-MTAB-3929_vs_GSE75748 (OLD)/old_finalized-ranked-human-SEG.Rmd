@@ -1,0 +1,907 @@
+---
+title: "finalized-ranked-human-SEG"
+author: "S2599932"
+date: "2024-07-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Start the pipeline
+
+```{r}
+data_one <- "/home/s2599932/study-datasets/human-dataset/E-MTAB-3929/E-MTAB-3929_counts.csv"
+targets_one <- "/home/s2599932/study-datasets/human-dataset/E-MTAB-3929/E-MTAB-3929_targets.csv"
+
+data_two <- "/home/s2599932/study-datasets/human-dataset/GSE75748/GSE75748_counts.csv"
+targets_two <- "/home/s2599932/study-datasets/human-dataset/GSE75748/GSE75748_targets.csv"
+```
+
+```{r}
+library(tidyverse)
+library(scMerge)
+library(SingleCellExperiment)
+library(scater)
+library(scran)
+library(biomaRt)
+library(org.Hs.eg.db)
+library(AnnotationDbi)
+```
+
+## Read in the data and and annotation information
+```{r}
+raw_one <- read.csv(data_one, header = TRUE, row.names = 1)
+annotation_one <- read.csv(targets_one, header = TRUE, row.names = "run_accession")
+annotation_one <- annotation_one[match(colnames(raw_one), rownames(annotation_one)), ]
+
+raw_two <- read.csv(data_two, header = TRUE, row.names = 1)
+annotation_two <- read.csv(targets_two, header = TRUE, row.names = "run_accession")
+annotation_two <- annotation_two[match(colnames(raw_two), rownames(annotation_two)), ]
+```
+
+## Extract the human stably expressed genes from scMerge package
+```{r}
+# Load in hSEG
+data("segList_ensemblGeneID", package = "scMerge")
+hSEG <- segList_ensemblGeneID$human$human_scSEG
+```
+
+## Create the Single Cell Experiment Object (SCE)
+```{r}
+sce_raw_one <- SingleCellExperiment(
+  assays = list(counts = as.matrix(raw_one)),
+  colData = annotation_one
+)
+
+sce_raw_two <- SingleCellExperiment(
+  assays = list(counts = as.matrix(raw_two)),
+  colData = annotation_two
+)
+```
+
+## Quality Control
+### Retrieve the mitochondrial genes for humans
+```{r}
+# Connect to the Ensembl BioMart database
+ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+# Query for mitochondrial genes
+mitogenes <- getBM(
+    attributes = c("ensembl_gene_id", "external_gene_name"),
+    filters = "chromosome_name",
+    values = "MT",
+    mart = ensembl
+)
+
+# Extract the ensembl_gene_id column and combine into a single string
+mitogenes_ensembl_ids <- paste(mitogenes$ensembl_gene_id, collapse = "|")
+```
+
+### Check for mitochondial genes (ERCC Not Present)
+```{r}
+is_mito_one <- grepl(mitogenes_ensembl_ids, rownames(sce_raw_one))
+sce_raw_one$qc_stats <- perCellQCMetrics(sce_raw_one, subsets = list(Mt=is_mito_one))
+
+is_mito_two <- grepl(mitogenes_ensembl_ids, rownames(sce_raw_two))
+sce_raw_two$qc_stats <- perCellQCMetrics(sce_raw_two, subsets = list(Mt=is_mito_two))
+```
+
+### QC Plots
+#### Plots for first dataset
+```{r}
+# Histogram for Library Sizes
+png("./qc-plots/hist_library_sizes_sce_raw_one.png", width = 7, height = 5, units = "in", res = 300)
+hist(sce_raw_one$qc_stats$sum / 1e6, 
+     xlab = "Library sizes (millions)", 
+     main = "Histogram of Library Sizes", 
+     breaks = 20, 
+     col = "grey80", 
+     ylab = "Number of cells")
+dev.off()
+
+# Histogram for Detected Genes
+png("./qc-plots/hist_detected_genes_sce_raw_one.png", width = 7, height = 5, units = "in", res = 300)
+hist(sce_raw_one$qc_stats$detected, 
+     xlab = "Number of detected genes", 
+     main = "Histogram of Detected Genes", 
+     breaks = 20, 
+     col = "grey80", 
+     ylab = "Number of cells")
+dev.off()
+
+# Histogram for Mitochondrial Proportion
+png("./qc-plots/hist_mito_proportion_sce_raw_one.png", width = 7, height = 5, units = "in", res = 300)
+hist(sce_raw_one$qc_stats$subsets_Mt_percent, 
+     xlab = "Mitochondrial proportion (%)", 
+     main = "Histogram of Mitochondrial Proportion", 
+     breaks = 20, 
+     col = "grey80", 
+     ylab = "Number of cells")
+dev.off()
+
+```
+
+#### Plot for second  dataset
+```{r}
+# Histogram for Library Sizes
+png("./qc-plots/hist_library_sizes_sce_raw_two.png", width = 7, height = 5, units = "in", res = 300)
+hist(sce_raw_two$qc_stats$sum / 1e6, 
+     xlab = "Library sizes (millions)", 
+     main = "Histogram of Library Sizes", 
+     breaks = 20, 
+     col = "grey80", 
+     ylab = "Number of cells")
+dev.off()
+
+# Histogram for Detected Genes
+png("./qc-plots/hist_detected_genes_sce_raw_two.png", width = 7, height = 5, units = "in", res = 300)
+hist(sce_raw_two$qc_stats$detected, 
+     xlab = "Number of detected genes", 
+     main = "Histogram of Detected Genes", 
+     breaks = 20, 
+     col = "grey80", 
+     ylab = "Number of cells")
+dev.off()
+
+# Histogram for Mitochondrial Proportion
+png("./qc-plots/hist_mito_proportion_sce_raw_two.png", width = 7, height = 5, units = "in", res = 300)
+hist(sce_raw_two$qc_stats$subsets_Mt_percent, 
+     xlab = "Mitochondrial proportion (%)", 
+     main = "Histogram of Mitochondrial Proportion", 
+     breaks = 20, 
+     col = "grey80", 
+     ylab = "Number of cells")
+dev.off()
+
+```
+
+
+
+
+
+
+### Drop samples based on QC metrics
+```{r}
+# Identify outliers for library sizes, detected features, and mitochondrial proportion
+libsize_drop_one <- isOutlier(sce_raw_one$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop_one <- isOutlier(sce_raw_one$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop_one <- isOutlier(sce_raw_one$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+
+# Filter out cells that are considered outliers in any category
+sce_fil_one <- sce_raw_one[,!(libsize_drop_one | feature_drop_one | mito_drop_one)]
+
+# Get the column names of the filtered cells
+filtered_cells_one <- colnames(sce_fil_one)
+
+
+
+# Identify outliers for library sizes, detected features, and mitochondrial proportion
+libsize_drop_two <- isOutlier(sce_raw_two$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop_two <- isOutlier(sce_raw_two$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop_two <- isOutlier(sce_raw_two$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+
+# Filter out cells that are considered outliers in any category
+sce_fil_two <- sce_raw_two[,!(libsize_drop_two | feature_drop_two | mito_drop_two)]
+
+# Get the column names of the filtered cells
+filtered_cells_two <- colnames(sce_fil_two)
+```
+
+## Check the number of samples remaining after filtering the SCE objects
+```{r}
+# First dataset
+cat("Number of samples before filtering (sce_raw_one):", length(colnames(sce_raw_one)), "\n")
+cat("Number of samples after filtering (sce_fil_one):", length(colnames(sce_fil_one)), "\n")
+
+# Second dataset
+cat("Number of samples before filtering (sce_raw_two):", length(colnames(sce_raw_two)), "\n")
+cat("Number of samples after filtering (sce_fil_two):", length(colnames(sce_fil_two)), "\n")
+```
+
+
+## Now create the SCE objects to be compared
+```{r}
+# Only choose human embryonic stem cells from the E-MTAB-3929
+sce_one <- sce_fil_one
+
+# Only choose embryonic day seven cells from GSE75748
+sce_two <- sce_fil_two
+```
+
+```{r}
+length(colnames(sce_one@assays@data$counts))
+length(colnames(sce_two@assays@data$counts))
+```
+
+> Optionally maybe remove genes that do not map to protein coding gene names maybe?
+
+### Normalize the original SCE objects (to be used for PCA visualization)
+```{r}
+cluster1 <- quickCluster(sce_fil_one)
+sce_fil_one <- computeSumFactors(sce_fil_one, clusters = cluster1)
+sce_fil_one <- logNormCounts(sce_fil_one)
+
+cluster2 <- quickCluster(sce_fil_two)
+sce_fil_two <- computeSumFactors(sce_fil_two, clusters = cluster2)
+sce_fil_two <- logNormCounts(sce_fil_two)
+```
+
+### Principal Component Analysis
+#### Make copies of the SCE objects
+```{r}
+# Ensure only hSEGs that are present in the data are used
+hSEG_index_one <- intersect(hSEG, rownames(one_non_subsetted_no_features))
+
+# Make copies of the first sce object
+one_non_subsetted_no_features <- sce_fil_one
+one_non_subsetted_all_genes_features <- sce_fil_one
+one_subsetted_no_features <- sce_fil_one
+one_subsetted_hseg_features <- sce_fil_one
+
+# Make copies of the second sce object
+two_non_subsetted_no_features <- sce_fil_two
+two_non_subsetted_all_genes_features <- sce_fil_two
+two_subsetted_no_features <- sce_fil_two
+two_subsetted_hseg_features <- sce_fil_two
+```
+
+#### PCA plots for first dataset using runPCA() of scater
+```{r}
+# Define the PCA function to run and create plot
+
+plot_pca_sce <- function(sce_object, features = NULL) {
+  # Run PCA
+  sce_object <- runPCA(sce_object, exprs_values = "logcounts", subset_row = features, scale = TRUE)
+  
+  # Extract PCA embedding
+  pca_embeddings <- reducedDim(sce_object, "PCA")[, 1:2]
+  pca_df <- as.data.frame(pca_embeddings)
+  colnames(pca_df) <- c("PC_1", "PC_2")
+  pca_df <- rownames_to_column(pca_df, var = "cell")
+  
+  # Combine with metadata
+  metadata <- as.data.frame(colData(sce_object))
+  metadata <- rownames_to_column(metadata, var = "cell")
+  pca_df <- left_join(pca_df, metadata, by = "cell")
+  
+  # Calculate the variance explained by the first two principal components
+  explained_variance <- attr(reducedDim(sce_object, "PCA"), "percentVar")
+  pc1 <- round(explained_variance[1], 2)
+  pc2 <- round(explained_variance[2], 2)
+  
+  # Plot with ggplot2
+  p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = development_stage)) +
+    geom_point(size = 2, alpha = 0.7) +
+    scale_color_brewer(palette = "Set1") +
+    theme_classic(base_size = 15) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+      axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+      axis.text = element_text(color = "black"),
+      legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
+      legend.position = "right",
+      legend.key.size = unit(0.6, "cm"),
+      legend.text = element_text(size = 10),
+      plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
+    ) +
+    labs(
+      title = "",
+      x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
+      y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
+      color = "Cell Type"
+    )
+  
+  return(p1)
+}
+
+# Define function for saving the plot
+save_plot <- function(plot, filename) {
+  ggsave(filename = filename, plot = plot, width = 8, height = 6, dpi = 300)
+}
+```
+
+##### Plot 1
+```{r fig.height=8, fig.width=10}
+p1 <- plot_pca_sce(one_non_subsetted_no_features)
+print(p1)
+```
+##### Plot 2
+```{r fig.height=8, fig.width=10}
+p2 <- plot_pca_sce(one_non_subsetted_no_features, rownames(one_non_subsetted_no_features))
+print(p2)
+```
+
+##### Subset the SCE objects
+```{r}
+# Ensure only hSEGs that are present in the data are used
+hSEG_index <- intersect(hSEG, rownames(one_non_subsetted_no_features))
+
+# Subset the SCE objects
+one_subsetted_no_features <- sce_fil_one[hSEG_index]
+one_subsetted_hseg_features <- sce_fil_one[hSEG_index,]
+```
+
+##### Plot 3
+```{r fig.height=8, fig.width=10}
+p3 <- plot_pca_sce(one_subsetted_no_features)
+print(p3)
+```
+
+##### Plot 4
+```{r fig.height=8, fig.width=10}
+p4 <- plot_pca_sce(one_subsetted_hseg_features, hSEG_index)
+print(p4)
+```
+
+
+```{r}
+library(colorspace)
+library(randomcoloR)
+
+# Create a distinct color palette with 14 colors
+contrasting_palette <- distinctColorPalette(14)
+
+
+# Display the palette
+print(contrasting_palette)
+```
+
+
+#### PCA plots for the second dataset using runPCA() of scater
+
+##### Define the PCA function
+```{r fig.height=10,fig.width=12}
+plot_pca_sce_custom <- function(sce_object, features = NULL, color_column = NULL) {
+  # Check if color_column is provided
+  if (is.null(color_column)) {
+    stop("Please provide a column name for coloring the points.")
+  }
+
+  # Run PCA
+  sce_object <- runPCA(sce_object, exprs_values = "logcounts", subset_row = features, scale = TRUE)
+  
+  # Extract PCA embedding
+  pca_embeddings <- reducedDim(sce_object, "PCA")[, 1:2]
+  pca_df <- as.data.frame(pca_embeddings)
+  colnames(pca_df) <- c("PC_1", "PC_2")
+  pca_df <- rownames_to_column(pca_df, var = "cell")
+  
+  # Combine with metadata
+  metadata <- as.data.frame(colData(sce_object))
+  metadata <- rownames_to_column(metadata, var = "cell")
+  pca_df <- left_join(pca_df, metadata, by = "cell")
+  
+  # Calculate the variance explained by the first two principal components
+  explained_variance <- attr(reducedDim(sce_object, "PCA"), "percentVar")
+  pc1 <- round(explained_variance[1], 2)
+  pc2 <- round(explained_variance[2], 2)
+  
+  # Create a contrasting color palette with 12 colors
+  contrasting_palette <- qualitative_hcl(12, palette = "Dark3")
+  
+  # Plot with ggplot2
+  p <- ggplot(pca_df, aes_string(x = "PC_1", y = "PC_2", color = color_column)) +
+    geom_point(size = 2, alpha = 0.7) +
+    scale_color_manual(values = contrasting_palette) +
+    theme_classic(base_size = 15) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+      axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+      axis.text = element_text(color = "black"),
+      legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
+      legend.position = "right",
+      legend.key.size = unit(0.6, "cm"),
+      legend.text = element_text(size = 10),
+      plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
+    ) +
+    labs(
+      title = "",
+      x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
+      y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
+      color = "Cell Type"
+    )
+  
+  return(p)
+}
+```
+
+##### Plot 1
+```{r fig.height=10, fig.width=12}
+q1 <- plot_pca_sce_custom(two_non_subsetted_all_genes_features,features = NULL, color_column ="cell_type")
+print(q1)
+```
+
+##### Plot 2
+```{r fig.height=10, fig.width=12}
+q2 <- plot_pca_sce_custom(two_non_subsetted_all_genes_features, features = rownames(two_non_subsetted_all_genes_features), color_column =  "cell_type")
+print(q2)
+```
+
+
+
+## Ranked SEG study
+### Normalize both the SCE objects using deconvolution normalization
+```{r}
+clust1 <- quickCluster(sce_one)
+sce_one <- computeSumFactors(sce_one, clusters = clust1)
+sce_one <- logNormCounts(sce_one)
+```
+
+```{r}
+clust2 <- quickCluster(sce_two)
+sce_two <- computeSumFactors(sce_two, clusters = clust2)
+sce_two <- logNormCounts(sce_two)
+```
+
+```{r}
+# Ensure there are no NA values
+sum(is.na(rowSums(logcounts(sce_one))))
+sum(is.na(colSums(logcounts(sce_one))))
+
+sum(is.na(rowSums(logcounts(sce_two))))
+sum(is.na(colSums(logcounts(sce_two))))
+```
+
+```{r}
+# Order the row names 
+sce_one <- sce_one[order(rownames(sce_one), decreasing = FALSE), ]
+
+sce_two <- sce_two[order(rownames(sce_two), decreasing = FALSE), ]
+```
+
+### Identify stably expressed genes in both susbsets
+```{r}
+sce_one_seg <- scSEGIndex(exprs(sce_one),return_all = TRUE)
+sce_two_seg <- scSEGIndex(exprs(sce_two),return_all = TRUE)
+```
+
+### Compute the rank difference
+```{r}
+# arrange the data frames in descending order
+sce_one_seg <- sce_one_seg %>% 
+  arrange(desc(segIdx))
+
+sce_two_seg <- sce_two_seg %>% 
+  arrange(desc(segIdx))
+
+# Save a copy of each
+one_seg <- sce_one_seg
+two_seg <- sce_two_seg
+```
+
+```{r}
+sce_one_seg$segIdx_one <- rank(-1 * sce_one_seg$segIdx, ties.method = "first") # changed from "average"
+sce_two_seg$segIdx_two <- rank(-1 * sce_two_seg$segIdx, ties.method = "first") # changed from "average"
+
+sce_one_seg$segIdx_two <- sce_two_seg[rownames(sce_one_seg),]$segIdx_two
+sce_two_seg$segIdx_one <- sce_one_seg[rownames(sce_two_seg),]$segIdx_one
+
+sce_one_seg$segIdx_one_vs_two <- sce_one_seg$segIdx_one - sce_one_seg$segIdx_two
+sce_two_seg$segIdx_two_vs_one <- sce_two_seg$segIdx_two - sce_two_seg$segIdx_one
+
+sce_one_seg <- sce_one_seg %>% 
+  arrange(desc(segIdx))
+sce_two_seg <- sce_two_seg %>% 
+  arrange(desc(segIdx))
+
+sce_one_df <- as.data.frame(sce_one_seg)
+sce_two_df <- as.data.frame(sce_two_seg)
+```
+
+### Map the ensembl IDs to entrez IDs
+```{r}
+# Extract the ensembl IDs
+ensemblIDs <- rownames(sce_one_df)
+
+# Map Ensembl IDs to Entrez IDs using org.Hs.eg.db
+mapped_entrez <- mapIds(org.Hs.eg.db,
+                        keys = ensemblIDs,
+                        column = "ENTREZID",
+                        keytype = "ENSEMBL",
+                        multiVals = "first")
+
+mapped_entrez <- data.frame(
+  gene = names(mapped_entrez),
+  EntrezID = as.character(mapped_entrez),
+  stringsAsFactors = FALSE
+)
+
+# Inner join with sce_one_df
+sce_one_df <- inner_join(sce_one_df, mapped_entrez, by = c("gene" = "gene"))
+
+# Inner join with sce_two_df
+sce_two_df <- inner_join(sce_two_df, mapped_entrez, by = c("gene" = "gene"))
+```
+
+### Get the gene biotype information of genes whose ensembl ID did not map to a entrez ID
+```{r}
+# Count and inspect the unmapped Ensembl IDs
+unmapped_ensembl_ids <- ensemblIDs[is.na(mapped_entrez$EntrezID)]
+num_unmapped <- sum(is.na(sce_one_df$EntrezID))
+print(paste("Number of unmapped Ensembl IDs:", num_unmapped))
+
+# Optional: Save the unmapped Ensembl IDs to a file for further inspection
+write.csv(unmapped_ensembl_ids, "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/unmapped_ensembl_ids.csv", row.names = FALSE)
+
+# Retrieve the gene types for the unmapped Ensembl IDs
+gene_info <- getBM(attributes = c('ensembl_gene_id', 'gene_biotype'),
+                   filters = 'ensembl_gene_id',
+                   values = unmapped_ensembl_ids,
+                   mart = ensembl)
+
+# Convert gene_info to a data frame
+gene_info_df <- as.data.frame(gene_info)
+
+# Write out the gene information 
+write.csv(gene_info_df, "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/gene_info_df.csv", row.names = FALSE)
+```
+
+#### Create a barplot to visualize the gene biotypes
+```{r fig.height=8, fig.width=10}
+# Create a bar plot for unmapped gene biotypes
+ggplot(gene_info_df, aes(x = gene_biotype)) +
+  geom_bar(fill="blue", color="black") +
+  labs(title="Distribution of Unmapped Gene Biotypes", x="Gene Biotypes", y="Frequency") +
+  theme_classic() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    axis.title.x = element_text(size = 12, face = "bold"),
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.margin = unit(c(1, 1, 1, 1), "cm")  # Top, right, bottom, left
+  )
+```
+### Nature compatible figures
+```{r fig.height=6, fig.width=8}
+# Load necessary libraries
+library(ggplot2)
+library(extrafont)
+
+# Create the bar plot with specified formatting
+plot <- ggplot(gene_info_df, aes(x = gene_biotype)) +
+  geom_bar(fill="blue", color="black") +
+  labs(title="Distribution of Unmapped Gene Biotypes", x="Gene Biotypes", y="Frequency") +
+  theme_classic() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8, face = "bold", family = "sans"),
+    axis.title.x = element_text(size = 7, face = "bold", family = "sans"),
+    axis.title.y = element_text(size = 7, face = "bold", family = "sans"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 5, family = "sans"),
+    axis.text.y = element_text(size = 5, family = "sans"),
+    plot.margin = unit(c(1, 1, 1, 1), "cm")  # Top, right, bottom, left
+  )
+
+# Save the plot as a high-quality PDF vector file
+ggsave("unmapped_gene_biotypes.pdf", plot = plot, width = 8, height = 6, units = "in", dpi = 300)
+
+print(plot)
+```
+
+
+### Check dimension
+```{r}
+dim(sce_one_df)
+dim(sce_two_df)
+```
+
+### Remove data for non coding genes
+```{r}
+# Remove the genes from the data frame that were unmapped (mostly pseudo genes and non coding RNA)
+sce_two_df <- sce_two_df %>%
+  filter(!is.na(EntrezID))
+sce_one_df <- sce_one_df %>%
+  filter(!is.na(EntrezID))
+```
+
+### Check dimension again
+```{r}
+dim(sce_one_df)
+dim(sce_two_df)
+```
+
+### Map the entrez IDs to gene symbols (What if the ensembl IDs are directly mapped to gene symbols an entrez IDs)
+```{r}
+# Retrieve gene symbols using org.Hs.eg.db
+mapped_symbols <- mapIds(org.Hs.eg.db,
+                         keys = sce_two_df$EntrezID,
+                         column = "SYMBOL",
+                         keytype = "ENTREZID",
+                         multiVals = "first")
+
+mapped_symbols <- data.frame(
+  EntrezID = names(mapped_symbols),
+  gene_symbol = as.character(mapped_symbols),
+  stringsAsFactors = FALSE
+)
+
+# Add the gene symbols to the data frame
+sce_one_df <- inner_join(sce_one_df, mapped_symbols, by = c("EntrezID" = "EntrezID"))
+sce_two_df <- inner_join(sce_two_df, mapped_symbols, by = c("EntrezID" = "EntrezID"))
+
+```
+
+### Since there are many to many mappings hapenning we need to add an additional step (optional as many to many mappings is expected)
+```{r}
+# Check for duplicate values
+
+dup_one <- sce_one_df %>% 
+  group_by(EntrezID) %>% 
+  filter(n() > 1) %>% 
+  ungroup()
+
+
+dup_two <- sce_two_df %>% 
+  group_by(EntrezID) %>% 
+  filter(n() > 1) %>% 
+  ungroup()
+
+# Print the number of duplicate rows found
+print(paste("Number of duplicate rows in sce_one_df:", nrow(dup_one)))
+print(paste("Number of duplicate rows in sce_two_df:", nrow(dup_two)))
+```
+
+```{r}
+# Remove duplicates, keeping only the first occurrence
+sce_one_df <- sce_one_df %>% 
+  distinct(EntrezID, .keep_all = TRUE)
+
+sce_two_df <- sce_two_df %>% 
+  distinct(EntrezID, .keep_all = TRUE)
+
+# Perform the join after removing duplicates
+sce_one_df <- inner_join(sce_one_df, mapped_symbols, by = c("EntrezID" = "EntrezID"))
+sce_two_df <- inner_join(sce_two_df, mapped_symbols, by = c("EntrezID" = "EntrezID"))
+```
+
+
+### Duplicates are present in the "gene" column so two ways to deal with them(either just keep the first occurence of each gene or just make the duplicate values unique)
+#### make the duplicate values unique
+```{r}
+# Since there are duplicates in the gene column
+
+# Load necessary libraries
+library(dplyr)
+library(tibble)
+
+# Identify duplicate genes
+duplicate_genes <- sce_one_df %>%
+  group_by(gene) %>%
+  filter(n() > 1) %>%
+  ungroup() %>%
+  dplyr::select(gene) %>%
+  distinct()
+
+print(duplicate_genes)
+
+# Make gene names unique
+sce_one_df_unique <- sce_one_df %>%
+  mutate(gene = make.unique(as.character(gene)))
+
+# Set the row names
+rownames(sce_one_df_unique) <- sce_one_df_unique$gene
+
+# Repeat for sce_two_df
+sce_two_df_unique <- sce_two_df %>%
+  mutate(gene = make.unique(as.character(gene)))
+
+rownames(sce_two_df_unique) <- sce_two_df_unique$gene
+```
+
+```{r}
+dim(sce_one_df_unique)
+dim(sce_two_df_unique)
+```
+
+#### Only keep the first occurence of a gene (used)
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(tibble)
+
+# Identify duplicate genes
+duplicate_genes <- sce_one_df %>%
+  group_by(gene) %>%
+  filter(n() > 1) %>%
+  ungroup() %>%
+  dplyr::select(gene) %>%
+  distinct()
+
+print(duplicate_genes)
+
+# Remove duplicates, keeping only the first occurrence
+sce_one_df_unique <- sce_one_df %>%
+  distinct(gene, .keep_all = TRUE)
+
+# Set the row names
+rownames(sce_one_df_unique) <- sce_one_df_unique$gene
+
+# Repeat for sce_two_df
+sce_two_df_unique <- sce_two_df %>%
+  distinct(gene, .keep_all = TRUE)
+
+rownames(sce_two_df_unique) <- sce_two_df_unique$gene
+
+```
+
+## Prepare the input named list for Gene Set Enrichment Analysis
+```{r}
+# Remove rows with NA or empty gene_symbol in the data frames
+sce_one_df_clean <- sce_one_df %>%
+  filter(!is.na(gene_symbol) & gene_symbol != "")
+
+sce_two_df_clean <- sce_two_df %>%
+  filter(!is.na(gene_symbol) & gene_symbol != "")
+
+# Deal with duplicate values in the gene column
+sce_one_df_unique <- sce_one_df_clean %>%
+  distinct(gene, .keep_all = TRUE)
+rownames(sce_one_df_unique) <- sce_one_df_unique$gene
+
+sce_two_df_unique <- sce_two_df_clean %>%
+  distinct(gene, .keep_all = TRUE)
+rownames(sce_two_df_unique) <- sce_two_df_unique$gene
+
+# Arrange both data frames in descending order of the segIdx column
+sce_one_df_unique <- sce_one_df_unique %>%
+  arrange(desc(segIdx))
+
+sce_two_df_unique <- sce_two_df_unique %>%
+  arrange(desc(segIdx))
+```
+### Select the top 1000 stable genes from both the datasets
+```{r}
+# Select the first 1000 rows from the arranged data frame
+sce_one_df_top1000 <- sce_one_df_unique %>%
+  slice_head(n = 1000)
+
+sce_two_df_top1000 <- sce_two_df_unique %>%
+  slice_head(n = 1000)
+```
+
+
+### Check if there are ties in the rank difference column (28-07-24)
+```{r}
+length(unique(sce_one_df_top1000$segIdx_one_vs_two))
+length(unique(sce_two_df_top1000$segIdx_two_vs_one))
+
+duplicate_rank_one <- sce_one_df_top1000 %>%
+  group_by(segIdx_one_vs_two) %>%
+  filter(n() > 1) %>%
+  ungroup() %>%
+  select(segIdx_one_vs_two, gene_symbol)
+
+duplicate_rank_two <- sce_two_df_top1000 %>%
+  group_by(segIdx_two_vs_one) %>%
+  filter(n() > 1) %>%
+  ungroup() %>%
+  select(segIdx_two_vs_one, gene_symbol)
+```
+
+
+```{r}
+# Create the named list with the gene symbols as the named list
+sce_one_ordered1000_lst <- setNames(sce_one_df_top1000$segIdx_one_vs_two, sce_one_df_top1000$gene_symbol)
+sce_two_ordered1000_lst <- setNames(sce_two_df_top1000$segIdx_two_vs_one, sce_two_df_top1000$gene_symbol)
+
+# Check for NA values
+any(is.na(sce_one_ordered1000_lst))
+any(is.na(sce_two_ordered1000_lst))
+```
+
+```{r}
+write.csv(sce_one_ordered1000_lst,file = "./gsea-enrichment-files/sce_EMTAB3929_day7.csv")
+write.csv(sce_two_ordered1000_lst,file = "./gsea-enrichment-files/sce_GSE75748_hESC.csv")
+```
+
+
+## Perform GSEA using fgsea
+```{r}
+library(fgsea)
+library(msigdb)
+library(ExperimentHub)
+library(GSEABase)
+# Retrieve the MSigDB (Molecular Signatures Database) for Homo sapiens (human) using gene symbols (version 7.5.1)
+# SYM is for gene symbols other possible values:'ENTREZ', 'ENSEMBL', 'REFSEQ', 'UNIPROT', 'HGNC'
+msigdb.hs = getMsigdb(org = 'hs', id = 'SYM', version = '7.5.1')
+msigdb.hs = appendKEGG(msigdb.hs)
+msigdb.hs.list <- geneIds(msigdb.hs)
+
+save(msigdb.hs.list, file = "./gsea-enrichment-files/msigdb_hs_list.RData")
+```
+
+```{r}
+load("./gsea-enrichment-files/msigdb_hs_list.RData")
+```
+
+### For all pathways
+```{r}
+# for the first subset
+fgsea_one <- fgsea(pathways = msigdb.hs.list, stats = sce_one_ordered1000_lst, minSize  = 15, maxSize = 500, nPermSimple = 100000)
+fgsea_one <- fgsea_one %>%
+  arrange(padj, desc(abs(NES)))
+
+# for the second subset
+fgsea_two <- fgsea(pathways = msigdb.hs.list, stats = sce_two_ordered1000_lst,minSize  = 15, maxSize = 500, nPermSimple = 100000)
+fgsea_two <- fgsea_two %>%
+  arrange(padj, desc(abs(NES)))
+```
+
+---
+
+>Warning in preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
+  There are ties in the preranked stats (18.9% of the list).
+The order of those tied genes will be arbitrary, which may produce unexpected results.
+Warning in fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
+  There were 38 pathways for which P-values were not calculated properly due to unbalanced (positive and negative) gene-level statistic values. For such pathways pval, padj, NES, log2err are set to NA. You can try to increase the value of the argument nPermSimple (for example set it nPermSimple = 1000000)
+Warning in preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
+  There are ties in the preranked stats (17.4% of the list).
+The order of those tied genes will be arbitrary, which may produce unexpected results.
+Warning in fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
+  There were 15 pathways for which P-values were not calculated properly due to unbalanced (positive and negative) gene-level statistic values. For such pathways pval, padj, NES, log2err are set to NA. You can try to increase the value of the argument nPermSimple (for example set it nPermSimple = 1000000)
+
+---
+
+### For only hallmark pathways
+```{r}
+# Filter for Hallmark gene sets
+hallmark_gene_sets_list <- msigdb.hs.list[grep("^HALLMARK_", names(msigdb.hs.list))]
+
+# for the first subset
+hallmark_fgsea_one <- fgsea(pathways = msigdb.hs.list, stats = sce_one_ordered1000_lst, nPermSimple = 100000)
+hallmark_fgsea_one <- hallmark_fgsea_one %>%
+  arrange(padj, desc(abs(NES)))
+
+# for the second subset
+hallmark_fgsea_two <- fgsea(pathways = msigdb.hs.list, stats = sce_two_ordered1000_lst, nPermSimple = 100000)
+hallmark_fgsea_one <- hallmark_fgsea_one %>%
+  arrange(padj, desc(abs(NES)))
+```
+
+### Check overlap between the named vector and the pathway list
+```{r}
+overlap_one <- intersect(names(sce_one_ordered1000_lst), unlist(msigdb.hs.list))
+overlap_two <- intersect(names(sce_two_ordered1000_lst), unlist(msigdb.hs.list))
+cat("Overlap for hESC:", length(overlap_one), "\n")
+cat("Overlap for non-hESC:", length(overlap_two), "\n")
+```
+### Create p-value plot disturbing
+```{r}
+hist(fgsea_one$pval, breaks=50, main="P-value distribution for one", xlab="P-value")
+hist(fgsea_two$pval, breaks=50, main="P-value distribution for two", xlab="P-value")
+```
+
+### Create adjusted p-value plot distributing
+```{r}
+hist(fgsea_one$padj, breaks=50, main="Adjusted P-value distribution for one", xlab="P-value")
+hist(fgsea_two$padj, breaks=50, main="Adjusted P-value distribution for two", xlab="P-value")
+```
+
+### Save the fgsea results
+```{r}
+library(jsonlite)
+
+# Function to convert list columns to JSON strings
+convert_list_columns_to_json <- function(df) {
+  list_columns <- sapply(df, is.list)
+  df[list_columns] <- lapply(df[list_columns], function(col) {
+    sapply(col, jsonlite::toJSON, auto_unbox = TRUE)
+  })
+  return(df)
+}
+
+# Convert the list to dataframe
+fgsea_one <- convert_list_columns_to_json(as.data.frame(fgsea_one))
+fgsea_two <- convert_list_columns_to_json(as.data.frame(fgsea_two))
+hallmark_fgsea_one <- convert_list_columns_to_json(as.data.frame(hallmark_fgsea_one))
+hallmark_fgsea_two <- convert_list_columns_to_json(as.data.frame(hallmark_fgsea_two))
+
+# Save as csv files
+write.csv(fgsea_one, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/fgsea_one.csv", row.names = FALSE)
+write.csv(fgsea_two, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/fgsea_two.csv", row.names = FALSE)
+write.csv(hallmark_fgsea_one, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/hallmark_fgsea_one.csv", row.names = FALSE)
+write.csv(hallmark_fgsea_two, file = "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/hallmark_fgsea_two.csv", row.names = FALSE)
+```
+

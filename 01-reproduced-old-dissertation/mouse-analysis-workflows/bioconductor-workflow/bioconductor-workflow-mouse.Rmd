@@ -55,7 +55,7 @@ library(biomaRt)
 library(corrplot)
 library(scater)
 library(scran)
-library(ComplexHeatmap)
+
 library(biomaRt)
 library(dplyr)
 library(knitr)

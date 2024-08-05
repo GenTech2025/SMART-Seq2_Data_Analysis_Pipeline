@@ -12,8 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 # For E-MTAB-3929
 
 ```{r}
-data_dir <- "/home/s2599932/study-datasets/E-MTAB-3929_self_processed/E-MTAB-3929_counts.csv"
-targets_dir <- "/home/s2599932/study-datasets/E-MTAB-3929_arrayexpress_downloaded/E-MTAB-3929_targets.csv"
+data_dir <- "/home/s2599932/study-datasets/human-dataset/E-MTAB-3929/E-MTAB-3929_counts.csv"
+targets_dir <- "/home/s2599932/study-datasets/human-dataset/E-MTAB-3929/E-MTAB-3929_targets.csv"
 ```
 
 ```{r}
@@ -25,6 +25,18 @@ library(scran)
 library(biomaRt)
 library(org.Hs.eg.db)
 library(AnnotationDbi)
+
+library(Seurat)
+library(scMerge)
+library(SingleCellExperiment)
+library(tidyverse)
+library(biomaRt)
+library(scater)
+library(scran)
+library(fgsea)
+library(msigdb)
+library(GSEABase)
+library(jsonlite)
 ```
 
 ## Read in the data and and annotation information
@@ -240,7 +252,7 @@ ggplot(pca_df_2, aes(x = PC1, y = PC2, color = CellType)) +
   )
 ```
 
-### Subset the SCE object and check what it does
+#### Subset the SCE object and check what it does
 ```{r}
 hSEG <- hSEG[hSEG %in% rownames(sce_raw)]
 
@@ -374,7 +386,7 @@ sce_one_seg <- scSEGIndex(exprs(sce_one),cell_type = colData(sce_one)$developmen
 sce_two_seg <- scSEGIndex(exprs(sce_two),cell_type = colData(sce_two)$development_stage,return_all = TRUE)
 ```
 
-### Compute the rank difference
+### Compute the rank difference (OLD)
 ```{r}
 # arrange the data frames in descending order
 sce_one_seg <- sce_one_seg %>% 
@@ -406,6 +418,94 @@ sce_two_seg <- sce_two_seg %>%
 sce_one_df <- as.data.frame(sce_one_seg)
 sce_two_df <- as.data.frame(sce_two_seg)
 ```
+
+
+> 01-08-24
+
+### Compute the rank difference (NEW)
+#### Find the top 1000 stable genes in the two datasets
+```{r}
+# Turn the segIdx columns to vectors
+sce_one_seg$segIdx <- as.vector(sce_one_seg$segIdx)
+sce_two_seg$segIdx <- as.vector(sce_two_seg$segIdx)
+
+# Arrange in ascending order and select the first 1000 rows # Changed on 31-07-24
+sce_one_seg_1000 <- sce_one_seg %>%
+  arrange(segIdx)%>%
+  head(1000)
+
+sce_two_seg_1000 <- sce_two_seg %>%
+  arrange(segIdx)%>%
+  head(1000)
+
+# Extract the most stable gene names from the two data sets
+first_1000_genes <- rownames(as.data.frame(sce_one_seg_1000))
+second_1000_genes <- rownames(as.data.frame(sce_two_seg_1000))
+
+# Find the common genes between the two data sets
+final_stable_gene_list <- union(first_1000_genes, second_1000_genes)
+unique_genes <- Filter(function(x) length(grep(x, final_stable_gene_list)) == 1, final_stable_gene_list)
+```
+
+#### Extract the stability index scores for those cumilative top stable genes
+```{r}
+# Create data frame from the results of scSEGIndex() 
+sce_one_seg_df <- as.data.frame(sce_one_seg)
+sce_two_seg_df <- as.data.frame(sce_two_seg)
+
+# Only retain the rows corresponding to the most stable genes
+sce_one_seg_df <- sce_one_seg_df[unique_genes,]
+sce_two_seg_df <- sce_two_seg_df[unique_genes,]
+
+# Rename the segIdx columns
+names(sce_one_seg_df)[names(sce_one_seg_df) == "segIdx"] <- "segIdx_one"
+names(sce_two_seg_df)[names(sce_two_seg_df) == "segIdx"] <- "segIdx_two"
+
+# Arrange the data frame in ascending order of segIdx values
+sce_one_seg_df <- sce_one_seg_df %>%
+  arrange(segIdx_one)
+
+sce_two_seg_df <- sce_two_seg_df %>%
+  arrange(segIdx_two)
+
+# Cross add the segIdx columns to the data frames
+sce_one_seg_df$segIdx_two <- sce_two_seg_df[rownames(sce_one_seg_df), "segIdx_two"]
+sce_two_seg_df$segIdx_one <- sce_one_seg_df[rownames(sce_two_seg_df), "segIdx_one"]
+
+# Compute the differences between the segIdx columns
+sce_one_seg_df$segIdx_one_vs_two <- sce_one_seg_df$segIdx_one - sce_one_seg_df$segIdx_two
+sce_two_seg_df$segIdx_two_vs_one <- sce_two_seg_df$segIdx_two - sce_two_seg_df$segIdx_one
+
+#sce_one_seg_df <- sce_one_seg_df %>%
+  #mutate(segIdx_one_vs_two = segIdx_one - segIdx_two)
+
+#sce_two_seg_df <- sce_two_seg_df %>%
+  #mutate(segIdx_two_vs_one = segIdx_two - segIdx_one)
+
+# Store the columns with NA values (NA values arose due to high percentage of zero number)
+na_rows_one <- sce_one_seg_df %>%
+  filter(is.na(segIdx_one_vs_two)) %>%
+  rownames()
+
+na_rows_two <- sce_two_seg_df %>%
+  filter(is.na(segIdx_two_vs_one)) %>%
+  rownames()
+```
+
+#### Remove NA values from the segIdx difference columns
+```{r}
+# Remove rows with NA values in the segIdx column
+sce_one_seg_df <- sce_one_seg_df %>%
+  filter(!is.na(segIdx_one_vs_two))
+
+sce_two_seg_df <- sce_two_seg_df %>%
+  filter(!is.na(segIdx_two_vs_one))
+
+# Rename the data frames
+sce_one_df <- sce_one_seg_df
+sce_two_df <- sce_two_seg_df
+```
+
 
 ### Map the ensembl IDs to entrez IDs
 ```{r}
@@ -440,7 +540,7 @@ num_unmapped <- sum(is.na(sce_one_df$EntrezID))
 print(paste("Number of unmapped Ensembl IDs:", num_unmapped))
 
 # Optional: Save the unmapped Ensembl IDs to a file for further inspection
-write.csv(unmapped_ensembl_ids, "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/unmapped_ensembl_ids.csv", row.names = FALSE)
+#write.csv(unmapped_ensembl_ids, "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/unmapped_ensembl_ids.csv", row.names = FALSE)
 
 # Retrieve the gene types for the unmapped Ensembl IDs
 gene_info <- getBM(attributes = c('ensembl_gene_id', 'gene_biotype'),
@@ -452,7 +552,7 @@ gene_info <- getBM(attributes = c('ensembl_gene_id', 'gene_biotype'),
 gene_info_df <- as.data.frame(gene_info)
 
 # Write out the gene information 
-write.csv(gene_info_df, "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/gene_info_df.csv", row.names = FALSE)
+#write.csv(gene_info_df, "/home/s2599932/MSc_DSB_Dissertation_2024/02-ranked-SEG-enrichment/E-MTAB-3929/gene_info_df.csv", row.names = FALSE)
 ```
 
 #### Create a barplot to visualize the gene biotypes
@@ -506,7 +606,7 @@ dim(sce_two_df)
 
 ### Remove data for non coding genes
 ```{r}
-# Remove the genes from the data frame that were unmapped (mostly pseudo genes and non coding RNA)
+# Remove the genes from the data frame that were unmapped (mostly pseudo genes and non coding RNA) as they cannot be used for fgsea
 sce_two_df <- sce_two_df %>%
   filter(!is.na(EntrezID))
 sce_one_df <- sce_one_df %>%
@@ -663,19 +763,18 @@ rownames(sce_two_df_unique) <- sce_two_df_unique$gene
 
 # Arrange both dataframes in descending order of the segIdx column
 sce_one_df_unique <- sce_one_df_unique %>%
-  arrange(desc(segIdx))
+  arrange(segIdx_one)
 
 sce_two_df_unique <- sce_two_df_unique %>%
-  arrange(desc(segIdx))
+  arrange(segIdx_two)
 ```
+
 ### Select the top 1000 stable genes from both the datasets
 ```{r}
 # Select the first 1000 rows from the arranged data frame
-sce_one_df_top1000 <- sce_one_df_unique %>%
-  slice_head(n = 1000)
+sce_one_df_top1000 <- sce_one_df_unique
 
-sce_two_df_top1000 <- sce_two_df_unique %>%
-  slice_head(n = 1000)
+sce_two_df_top1000 <- sce_two_df_unique
 ```
 
 ```{r}
@@ -712,12 +811,12 @@ save(msigdb.hs.list, file = "./msigdb_hs_list.RData")
 ### For all pathways
 ```{r}
 # for the first subset
-fgsea_one <- fgsea(pathways = msigdb.hs.list, stats = sce_one_ordered1000_lst, nPermSimple = 100000)
+fgsea_one <- fgsea(pathways = msigdb.hs.list, stats = sce_one_ordered1000_lst, minSize =5, maxSize = 100, nPermSimple = 100000)
 fgsea_one <- fgsea_one %>%
   arrange(padj, desc(abs(NES)))
 
 # for the second subset
-fgsea_two <- fgsea(pathways = msigdb.hs.list, stats = sce_two_ordered1000_lst, nPermSimple = 100000)
+fgsea_two <- fgsea(pathways = msigdb.hs.list, stats = sce_two_ordered1000_lst,minSize =5, maxSize = 100, nPermSimple = 100000)
 fgsea_two <- fgsea_two %>%
   arrange(padj, desc(abs(NES)))
 ```

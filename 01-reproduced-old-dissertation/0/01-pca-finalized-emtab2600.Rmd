@@ -187,6 +187,7 @@ outliers_list <- outliers_df$X
 ## Plots
 ### Plot 1
 ```{r}
+set.seed(100)
 # Remove the outlying cells
 so_non_subsetted_no_features_defined <- subset(so_non_subsetted_no_features_defined, cells = setdiff(Cells(so_non_subsetted_no_features_defined), outliers_list))
 
@@ -206,13 +207,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2 using the specified parameters
-p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+seurat_p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
   scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -221,19 +222,20 @@ p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "RunPCA() + Non Subsetted + No Features defined",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
-ggsave(filename = "./seurat_p1.png", plot = p1, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./seurat_p1.png", plot = seurat_p1, width = 8, height = 6, dpi = 300)
 
-print(p1)
+print(seurat_p1)
 ```
 
 ### Plot 2
 ```{r}
+set.seed(100)
 # Remove the outlying cells
 so_non_subsetted_all_genes_as_features <- subset(so_non_subsetted_all_genes_as_features, cells = setdiff(Cells(so_non_subsetted_all_genes_as_features), outliers_list))
 
@@ -253,13 +255,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2 using the specified parameters
-p2 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+seurat_p2 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
   scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -268,15 +270,15 @@ p2 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "RunPCA() + Non Subsetted + All genes as features",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
-ggsave(filename = "./seurat_p2.png", plot = p2, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./seurat_p2.png", plot = seurat_p2, width = 8, height = 6, dpi = 500)
 
-print(p2)
+print(seurat_p2)
 ```
 
 ### Combine plot 1 and 2
@@ -285,10 +287,10 @@ print(p2)
 library(cowplot)
 
 # Combine the plots into one object using plot_grid and add labels
-combined_plot <- plot_grid(p1, p2, labels = c("A", "B"), ncol = 2)
+combined_plot_seuratp1p2 <- plot_grid(seurat_p1, seurat_p2, labels = c("A", "B"), ncol = 2)
 
 # Save the combined plot as a high-resolution PNG
-ggsave(filename = "seurat-p1vsp2.png", plot = combined_plot, width = 16, height = 8, dpi = 300)
+ggsave(filename = "seurat-p1vsp2.png", plot = combined_plot_seuratp1p2, width = 16, height = 6, dpi = 500)
 ```
 
 ### Plot 3
@@ -312,7 +314,7 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2 using the specified parameters
-p3 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+seurat_p3 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
   scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
@@ -333,9 +335,9 @@ p3 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     color = "Cell Type"
   )
 
-ggsave(filename = "./seurat_p3.png", plot = p3, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./seurat_p3.png", plot = seurat_p3, width = 10, height = 8, dpi = 300)
 
-print(p3)
+print(seurat_p3)
 ```
 
 ### Plot 4
@@ -360,13 +362,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2 using the specified parameters
-p4 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+seurat_p4 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
   scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -375,15 +377,15 @@ p4 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "RunPCA() + Subsetted + No features defined",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
-ggsave(filename = "./seurat_p4.png", plot = p4, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./seurat_p4.png", plot = seurat_p4, width = 8, height = 6, dpi = 300)
 
-print(p4)
+print(seurat_p4)
 
 ```
 
@@ -410,13 +412,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2 using the specified parameters
-p5 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+seurat_p5 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
   scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -425,24 +427,24 @@ p5 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "RunPCA() + Subsetted + mSEG as features",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
-ggsave(filename = "./seurat_p5.png", plot = p5, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./seurat_p5.png", plot = seurat_p5, width = 8, height = 6, dpi = 300)
 
-print(p5)
+print(seurat_p5)
 ```
 
 ### Combine plot 4 and 5
 ```{r}
 # Combine the plots into one object using plot_grid and add labels
-combined_plot <- plot_grid(p4, p5, labels = c("C", "D"), ncol = 2)
+combined_plot_seuratp4p5 <- plot_grid(seurat_p4, seurat_p5, labels = c("A", "B"), ncol = 2)
 
 # Save the combined plot as a high-resolution PNG
-ggsave(filename = "seurat-p4vsp5.png", plot = combined_plot, width = 16, height = 8, dpi = 300)
+ggsave(filename = "seurat-p4vsp5.png", plot = combined_plot_seuratp4p5, width = 16, height = 6, dpi = 500)
 ```
 
 # Next create heatmap of the log normalized data being used in the PCA for subsetted seurat object with and without explicit defination of mSEG as features
@@ -474,6 +476,7 @@ sce_subsetted_mSEGs_as_features <- sce_fil
 
 ## Plot 1
 ```{r}
+set.seed(100)
 sce_non_subsetted_no_features_defined <- runPCA(sce_non_subsetted_no_features_defined, exprs_values = "logcounts", subset_row = NULL, scale = TRUE)
 
 # Extract PCA embedding
@@ -493,13 +496,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2
-p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+scater_p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
-  scale_color_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -508,50 +511,23 @@ p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "runPCA() + Non Subsetted + No features defined",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
 # Save the plot
-ggsave(filename = "./scater_p1.png", plot = p1, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./scater_p1.png", plot = scater_p1, width = 8, height = 6, dpi = 500)
 
 # Print the plot
-print(p1)
+print(scater_p1)
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ## Plot 2
 ```{r}
+set.seed(100)
 # Perform PCA on the SCE object
 sce_non_subsetted_all_genes_as_features <- runPCA(sce_non_subsetted_all_genes_as_features, exprs_values = "logcounts", subset_row = rownames(sce_non_subsetted_all_genes_as_features), scale = TRUE)
 
@@ -572,13 +548,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2
-p2 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+scater_p2 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
-  scale_color_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -587,24 +563,26 @@ p2 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "runPCA() + Non Subsetted + All genes as features",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
 # Save the plot
-ggsave(filename = "./scater_p2.png", plot = p2, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./scater_p2.png", plot = scater_p2, width = 8, height = 6, dpi = 500)
 
 # Print the plot
-print(p2)
+print(scater_p2)
 
 ```
+
 ## Combine Plot 1 and 2
 ```{r}
-combined_plot <- plot_grid(p1, p2, labels = c("A", "B"), ncol = 2)
-ggsave(filename = "scater-p1vsp2.png", plot = combined_plot, width = 16, height = 8, dpi = 300)
+combined_plot_scaterp1p2 <- plot_grid(scater_p1, scater_p2, labels = c("C", "D"), ncol = 2)
+ggsave(filename = "scater-p1vsp2.png", plot = combined_plot_scaterp1p2, width = 16, height = 6, dpi = 500)
 ```
+
 ## Plot 3
 ```{r}
 # Create valid row indices
@@ -630,13 +608,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2
-p3 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+scater_p3 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
-  scale_color_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -645,21 +623,22 @@ p3 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "runPCA() + Non Subsetted + No features defined",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
 # Save the plot
-ggsave(filename = "./scater_p3_mSEGs.png", plot = p3, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./scater_p3.png", plot = scater_p3, width = 8, height = 6, dpi = 500)
 
 # Print the plot
-print(p3)
+print(scater_p3)
 ```
 
 ## Plot 4
 ```{r}
+set.seed(100)
 # Create valid row indices
 mSEG_index <- intersect(mSEG, rownames(sce_non_subsetted_mSEGs_as_features))
 
@@ -686,13 +665,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2
-p4 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+scater_p4 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
-  scale_color_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -701,21 +680,22 @@ p4 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "runPCA() + Subsetted + No features defined",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
 # Save the plot
-ggsave(filename = "./scater_p4_no_features.png", plot = p4, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./scater_p4.png", plot = scater_p4, width = 8, height = 6, dpi = 500)
 
 # Print the plot
-print(p4)
+print(scater_p4)
 ```
 
 ## Plot 5
 ```{r}
+set.seed(100)
 # Create valid row indices
 mSEG_index <- intersect(mSEG, rownames(sce_subsetted_mSEGs_as_features))
 
@@ -742,13 +722,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2
-p5 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+scater_p5 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
-  scale_color_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -757,23 +737,35 @@ p5 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "runPCA() + Subsetted + mSEGs as features",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
 # Save the plot
-ggsave(filename = "./scater_p5_mSEGs.png", plot = p5, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./scater_p5.png", plot = scater_p5, width = 8, height = 6, dpi = 500)
 
 # Print the plot
-print(p5)
+print(scater_p5)
 ```
 
 ## Combine Plot 4 and 5
 ```{r}
-combined_plot <- plot_grid(p4, p5, labels = c("C", "D"), ncol = 2)
-ggsave(filename = "scater-p4vsp5.png", plot = combined_plot, width = 16, height = 8, dpi = 300)
+combined_plot_scaterp4p5 <- plot_grid(scater_p4, scater_p5, labels = c("C", "D"), ncol = 2)
+ggsave(filename = "scater-p4vsp5.png", plot = combined_plot_scaterp4p5, width = 16, height = 6, dpi = 500)
+```
+
+
+## Four panel plot
+```{r}
+four_all <- plot_grid(combined_plot_seuratp1p2, combined_plot_scaterp1p2, nrow = 2)
+ggsave(filename = "Seurat_Scater_all_genes_as_features.png", plot = four_all, width = 16, height = 12, dpi = 500)
+```
+
+```{r}
+four_seg <- plot_grid(combined_plot_seuratp4p5, combined_plot_scaterp4p5, nrow = 2)
+ggsave(filename = "Seurat_Scater_seg_as_features.png", plot = four_seg, width = 16, height = 12, dpi = 500)
 ```
 
 
@@ -788,18 +780,20 @@ filtered_metadata <- metadata %>%
 
 sce_fil <- sce_fil[, colnames(sce_fil) %in% filtered_metadata$cell]
 
+filtered_mSEG <- intersect(mSEG, rownames(sce_fil))
+
 # Copy the SCE objects
 sce_non_subsetted_no_features_defined <- sce_fil
 sce_non_subsetted_all_genes_as_features <- sce_fil
 sce_non_subsetted_mSEGs_as_features <- sce_fil
-sce_subsetted_no_features_defined <- sce_fil
-sce_subsetted_mSEGs_as_features <- sce_fil
+sce_subsetted_no_features_defined <- sce_fil[filtered_mSEG,]
+sce_subsetted_mSEGs_as_features <- sce_fil[filtered_mSEG,]
 ```
 
 # Plot 1
 ```{r}
 # Perform PCA on the SCE object using fixedPCA
-sce_non_subsetted_no_features_defined <- fixedPCA(sce_non_subsetted_no_features_defined, subset.row = NULL, assay.type = "logcounts", scale = TRUE)
+sce_non_subsetted_no_features_defined <- fixedPCA(sce_non_subsetted_no_features_defined, subset.row = NULL, assay.type = "logcounts")
 
 # Extract PCA embeddings
 pca_embeddings <- reducedDim(sce_non_subsetted_no_features_defined, "PCA")[, 1:2]
@@ -818,13 +812,13 @@ pc1 <- round(explained_variance[1], 2)
 pc2 <- round(explained_variance[2], 2)
 
 # Plot with ggplot2
-p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+scran_p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
   geom_point(size = 2, alpha = 0.7) +
-  scale_color_brewer(palette = "Set2") +
+  scale_color_brewer(palette = "Set1") +
   theme_classic(base_size = 15) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
-    axis.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
     axis.text = element_text(color = "black"),
     legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
     legend.position = "right",
@@ -833,16 +827,223 @@ p1 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
     plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
   ) +
   labs(
-    title = "",
+    title = "fixedPCA() + Non subsetted + No features defined",
     x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
     y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
     color = "Cell Type"
   )
 
 # Save the plot
-ggsave(filename = "./scater_p1.png", plot = p1, width = 10, height = 8, dpi = 300)
+ggsave(filename = "./scran_p1.png", plot = scran_p1, width = 8, height = 6, dpi = 500)
 
 # Print the plot
-print(p1)
+print(scran_p1)
+```
+
+# Plot 2
+```{r}
+# Perform PCA on the SCE object using fixedPCA
+sce_non_subsetted_all_genes_as_features <- fixedPCA(sce_non_subsetted_all_genes_as_features, subset.row = rownames(sce_non_subsetted_all_genes_as_features), assay.type = "logcounts")
+
+# Extract PCA embeddings
+pca_embeddings <- reducedDim(sce_non_subsetted_all_genes_as_features, "PCA")[, 1:2]
+pca_df <- as.data.frame(pca_embeddings)
+colnames(pca_df) <- c("PC_1", "PC_2")
+pca_df <- rownames_to_column(pca_df, var = "cell")
+
+# Combine with metadata
+metadata <- as.data.frame(colData(sce_non_subsetted_all_genes_as_features))
+metadata <- rownames_to_column(metadata, var = "cell")
+pca_df <- left_join(pca_df, metadata, by = "cell")
+
+# Calculate the variance explained by the first two principal components
+explained_variance <- attr(reducedDim(sce_non_subsetted_all_genes_as_features, "PCA"), "percentVar")
+pc1 <- round(explained_variance[1], 2)
+pc2 <- round(explained_variance[2], 2)
+
+# Plot with ggplot2
+scran_p2 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_brewer(palette = "Set1") +
+  theme_classic(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    axis.text = element_text(color = "black"),
+    legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
+    legend.position = "right",
+    legend.key.size = unit(0.6, "cm"),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
+  ) +
+  labs(
+    title = "fixedPCA() + Non subsetted + All genes as features",
+    x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
+    y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
+    color = "Cell Type"
+  )
+
+# Save the plot
+ggsave(filename = "./scran_p2.png", plot = scran_p2, width = 8, height = 6, dpi = 500)
+
+# Print the plot
+print(scran_p2)
+```
+
+# Plot 3
+```{r}
+set.seed(100)
+sce_non_subsetted_mSEGs_as_features
+
+# Perform PCA on the SCE object using fixedPCA
+sce_non_subsetted_mSEGs_as_features <- fixedPCA(sce_non_subsetted_mSEGs_as_features, subset.row = mSEG_index, assay.type = "logcounts")
+
+# Extract PCA embeddings
+pca_embeddings <- reducedDim(sce_non_subsetted_mSEGs_as_features, "PCA")[, 1:2]
+pca_df <- as.data.frame(pca_embeddings)
+colnames(pca_df) <- c("PC_1", "PC_2")
+pca_df <- rownames_to_column(pca_df, var = "cell")
+
+# Combine with metadata
+metadata <- as.data.frame(colData(sce_non_subsetted_mSEGs_as_features))
+metadata <- rownames_to_column(metadata, var = "cell")
+pca_df <- left_join(pca_df, metadata, by = "cell")
+
+# Calculate the variance explained by the first two principal components
+explained_variance <- attr(reducedDim(sce_non_subsetted_mSEGs_as_features, "PCA"), "percentVar")
+pc1 <- round(explained_variance[1], 2)
+pc2 <- round(explained_variance[2], 2)
+
+# Plot with ggplot2
+scran_p3 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_brewer(palette = "Set1") +
+  theme_classic(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    axis.text = element_text(color = "black"),
+    legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
+    legend.position = "right",
+    legend.key.size = unit(0.6, "cm"),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
+  ) +
+  labs(
+    title = "fixedPCA() + Non subsetted + mSEGs as features",
+    x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
+    y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
+    color = "Cell Type"
+  )
+
+# Save the plot
+ggsave(filename = "./scran_p3.png", plot = scran_p3, width = 8, height = 6, dpi = 500)
+
+# Print the plot
+print(scran_p3)
+```
+
+# Plot 4
+```{r}
+set.seed(100)
+
+# Perform PCA on the SCE object using fixedPCA
+sce_subsetted_no_features_defined <- fixedPCA(sce_subsetted_no_features_defined, assay.type = "logcounts")
+
+# Extract PCA embeddings
+pca_embeddings <- reducedDim(sce_subsetted_no_features_defined, "PCA")[, 1:2]
+pca_df <- as.data.frame(pca_embeddings)
+colnames(pca_df) <- c("PC_1", "PC_2")
+pca_df <- rownames_to_column(pca_df, var = "cell")
+
+# Combine with metadata
+metadata <- as.data.frame(colData(sce_subsetted_no_features_defined))
+metadata <- rownames_to_column(metadata, var = "cell")
+pca_df <- left_join(pca_df, metadata, by = "cell")
+
+# Calculate the variance explained by the first two principal components
+explained_variance <- attr(reducedDim(sce_subsetted_no_features_defined, "PCA"), "percentVar")
+pc1 <- round(explained_variance[1], 2)
+pc2 <- round(explained_variance[2], 2)
+
+# Plot with ggplot2
+scran_p4 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_brewer(palette = "Set1") +
+  theme_classic(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    axis.text = element_text(color = "black"),
+    legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
+    legend.position = "right",
+    legend.key.size = unit(0.6, "cm"),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
+  ) +
+  labs(
+    title = "fixedPCA() + Subsetted + No features defined",
+    x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
+    y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
+    color = "Cell Type"
+  )
+
+# Save the plot
+ggsave(filename = "./scran_p4.png", plot = scran_p4, width = 8, height = 6, dpi = 500)
+
+# Print the plot
+print(scran_p4)
+```
+
+# Plot 5
+```{r}
+set.seed(100)
+
+# Perform PCA on the SCE object using fixedPCA
+sce_subsetted_mSEGs_as_features <- fixedPCA(sce_subsetted_mSEGs_as_features,subset.row = filtered_mSEG, assay.type = "logcounts")
+
+# Extract PCA embeddings
+pca_embeddings <- reducedDim(sce_subsetted_mSEGs_as_features, "PCA")[, 1:2]
+pca_df <- as.data.frame(pca_embeddings)
+colnames(pca_df) <- c("PC_1", "PC_2")
+pca_df <- rownames_to_column(pca_df, var = "cell")
+
+# Combine with metadata
+metadata <- as.data.frame(colData(sce_subsetted_mSEGs_as_features))
+metadata <- rownames_to_column(metadata, var = "cell")
+pca_df <- left_join(pca_df, metadata, by = "cell")
+
+# Calculate the variance explained by the first two principal components
+explained_variance <- attr(reducedDim(sce_subsetted_mSEGs_as_features, "PCA"), "percentVar")
+pc1 <- round(explained_variance[1], 2)
+pc2 <- round(explained_variance[2], 2)
+
+# Plot with ggplot2
+scran_p5 <- ggplot(pca_df, aes(x = PC_1, y = PC_2, color = Type)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_brewer(palette = "Set1") +
+  theme_classic(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    axis.text = element_text(color = "black"),
+    legend.title = element_text(face = "bold", hjust = 0.5, size = 8),
+    legend.position = "right",
+    legend.key.size = unit(0.6, "cm"),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(20, 20, 20, 20)  # Add margins (top, right, bottom, left)
+  ) +
+  labs(
+    title = "fixedPCA() + Subsetted + mSEGs as features",
+    x = paste("Principal Component 1 (", pc1, "%)", sep = ""),
+    y = paste("Principal Component 2 (", pc2, "%)", sep = ""),
+    color = "Cell Type"
+  )
+
+# Save the plot
+ggsave(filename = "./scran_p5.png", plot = scran_p5, width = 8, height = 6, dpi = 500)
+
+# Print the plot
+print(scran_p5)
 ```
 

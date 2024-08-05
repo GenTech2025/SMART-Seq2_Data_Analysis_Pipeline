@@ -1,0 +1,494 @@
+---
+title: "finalized-human-ranked-SEG-enrichment-one-way"
+author: "B243232"
+date: "2024-08-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Define File Paths
+```{r}
+dataset_one_dir <- "/home/s2599932/study-datasets/human-dataset/E-MTAB-3929/E-MTAB-3929_counts.csv"
+dataset_two_dir <- "/home/s2599932/study-datasets/human-dataset/GSE75748/GSE75748_counts.csv"
+dataset_one_annotation_dir <- "/home/s2599932/study-datasets/human-dataset/E-MTAB-3929/E-MTAB-3929_targets.csv"
+dataset_two_annotation_dir <- "/home/s2599932/study-datasets/human-dataset/GSE75748/GSE75748_targets.csv"
+```
+
+### Load Libraries
+```{r}
+# Load required libraries
+library(tidyverse)
+library(scMerge)
+library(SingleCellExperiment)
+library(scater)
+library(scran)
+library(biomaRt)
+library(org.Hs.eg.db)
+library(AnnotationDbi)
+library(Seurat)
+library(fgsea)
+library(msigdb)
+library(GSEABase)
+library(jsonlite)
+```
+
+### Load the expression data and metadata
+```{r}
+# Load data for the first set (E-MTAB-3929)
+raw_one <- read.csv(dataset_one_dir, header = TRUE, row.names = 1)
+annotation_one <- read.csv(dataset_one_annotation_dir, header = TRUE, row.names = "run_accession")
+annotation_one <- annotation_one[match(colnames(raw_one), rownames(annotation_one)), ]
+
+# Load data for the second set (GSE75748)
+raw_two <- read.csv(dataset_two_dir, header = TRUE, row.names = 1)
+annotation_two <- read.csv(dataset_two_annotation_dir, header = TRUE, row.names = "run_accession")
+annotation_two <- annotation_two[match(colnames(raw_two), rownames(annotation_two)), ]
+```
+
+### Creating the single cell experiment object
+```{r}
+sce_raw_one <- SingleCellExperiment(
+  assays = list(counts = as.matrix(raw_one)),
+  colData = annotation_one
+)
+
+sce_raw_two <- SingleCellExperiment(
+  assays = list(counts = as.matrix(raw_two)),
+  colData = annotation_two
+)
+```
+
+### Extract the human stably expressed genes from scMerge package
+```{r}
+data("segList_ensemblGeneID", package = "scMerge")
+hSEG <- segList_ensemblGeneID$human$human_scSEG
+```
+
+## Quality Control
+### Retrieve the mitochondrial genes for humans
+```{r}
+# Connect to the Ensembl BioMart database
+ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+# Query for mitochondrial genes
+mitogenes <- getBM(
+    attributes = c("ensembl_gene_id", "external_gene_name"),
+    filters = "chromosome_name",
+    values = "MT",
+    mart = ensembl
+)
+
+# Extract the ensembl_gene_id column and combine into a single string
+mitogenes_ensembl_ids <- paste(mitogenes$ensembl_gene_id, collapse = "|")
+```
+
+### Check for mitochondial genes
+```{r}
+# For the first SingleCellExperiment object
+is_mito_raw_one <- grepl(mitogenes_ensembl_ids, rownames(sce_raw_one))
+sce_raw_one$qc_stats <- perCellQCMetrics(sce_raw_one, subsets = list(Mt = is_mito_raw_one))
+
+# For the second SingleCellExperiment object
+is_mito_raw_two <- grepl(mitogenes_ensembl_ids, rownames(sce_raw_two))
+sce_raw_two$qc_stats <- perCellQCMetrics(sce_raw_two, subsets = list(Mt = is_mito_raw_two))
+```
+
+### Eliminate samples that does not meet QC criteria
+```{r}
+# For the first SingleCellExperiment object
+libsize_drop_raw_one <- isOutlier(sce_raw_one$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop_raw_one <- isOutlier(sce_raw_one$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop_raw_one <- isOutlier(sce_raw_one$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+
+sce_fil_raw_one <- sce_raw_one[, !(libsize_drop_raw_one | feature_drop_raw_one | mito_drop_raw_one)]
+
+filtered_cells_raw_one <- colnames(sce_fil_raw_one)
+
+# For the second SingleCellExperiment object
+libsize_drop_raw_two <- isOutlier(sce_raw_two$qc_stats$sum, nmads = 3, type = "lower", log = TRUE)
+feature_drop_raw_two <- isOutlier(sce_raw_two$qc_stats$detected, nmads = 3, type = "lower", log = TRUE)
+mito_drop_raw_two <- isOutlier(sce_raw_two$qc_stats$subsets_Mt_percent, nmads = 3, type = "higher")
+
+sce_fil_raw_two <- sce_raw_two[, !(libsize_drop_raw_two | feature_drop_raw_two | mito_drop_raw_two)]
+
+filtered_cells_raw_two <- colnames(sce_fil_raw_two)
+```
+
+## Visualize different cell types in the datasets
+```{r}
+print(unique(colData(sce_raw_one)$development_stage))
+print(unique(colData(sce_raw_two)$cell_type))
+```
+
+## Create the SCE objects to be compared
+```{r}
+# For sce_raw_one, filtering for "embryonic day 7"
+sce_one <- sce_raw_one[, colData(sce_raw_one)$development_stage == "embryonic day 7"]
+
+# For sce_raw_two, filtering for "undifferentiated human embryonic stem cells"
+sce_two <- sce_raw_two[, colData(sce_raw_two)$cell_type == "undifferentiated human embryonic stem cells"]
+```
+
+## Normalize using deconvolution normalization
+```{r}
+# For first data set
+clusters_one <- quickCluster(sce_one)
+sce_one <- computeSumFactors(sce_one, clusters = clusters_one)
+sce_one <- logNormCounts(sce_one)
+
+# For second data set
+clusters_two <- quickCluster(sce_two)
+sce_two <- computeSumFactors(sce_two, clusters = clusters_two)
+sce_two <- logNormCounts(sce_two)
+```
+
+## Map the ensembl IDs to external gene symbols, entrez ID and gene biotype
+### First
+```{r}
+# Use the Ensembl mart for human
+ensembl_human <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+attributes_human <- listAttributes(ensembl_human)
+
+# Map the ensembl IDs of the first dataset
+ensembl_id_one <- rownames(sce_one)
+
+# Get the mapping information for the first dataset
+mapping_info_one <- getBM(
+    attributes = c(
+        "ensembl_gene_id",
+        "external_gene_name",
+        "gene_biotype",
+        "description"
+    ),
+    filters = "ensembl_gene_id",
+    values = ensembl_id_one,
+    mart = ensembl_human
+)
+
+map_df_one <- as.data.frame(mapping_info_one)
+```
+
+#### Plot the distribution of gene biotypes
+```{r fig.height=8, fig.width=10}
+# Create a bar plot with customized title and axis labels
+one_gb <- ggplot(map_df_one, aes(x = gene_biotype)) +
+          geom_bar(fill = "blue") +
+          theme_classic() +
+          labs(
+              title = "Count of Genes by Gene Biotype : Dataset One",
+              x = "Gene Biotype",
+              y = "Count"
+          ) +
+          theme(
+              plot.title = element_text(size = 15, face = "bold", hjust = 0.5),  # Customize title size, font, and position
+              axis.title.x = element_text(size = 10, face = "bold", hjust = 0.5, vjust = -0.5),  # Customize x-axis label
+              axis.title.y = element_text(size = 10, face = "bold", hjust = 0.5, vjust = 1.5),  # Customize y-axis label
+              axis.text.x = element_text(angle = 45, hjust = 1, size = 12),  # Customize x-axis text
+              axis.text.y = element_text(size = 10)  # Customize y-axis text
+          )
+
+print(one_gb)
+```
+
+
+### Second
+```{r}
+# Map the ensembl IDs of the second dataset
+ensembl_id_two <- rownames(sce_two)
+
+# Get the mapping information for the second dataset
+mapping_info_two <- getBM(
+    attributes = c(
+        "ensembl_gene_id",
+        "external_gene_name",
+        "gene_biotype",
+        "description"
+    ),
+    filters = "ensembl_gene_id",
+    values = ensembl_id_two,
+    mart = ensembl_human
+)
+
+map_df_two <- as.data.frame(mapping_info_two)
+```
+
+#### Plot the distribution of gene biotypes
+```{r fig.height=8, fig.width=10}
+# Create a bar plot with customized title and axis labels
+two_gb <- ggplot(map_df_two, aes(x = gene_biotype)) +
+          geom_bar(fill = "blue") +
+          theme_classic() +
+          labs(
+              title = "Count of Genes by Gene Biotype : Dataset Two",
+              x = "Gene Biotype",
+              y = "Count"
+          ) +
+          theme(
+              plot.title = element_text(size = 15, face = "bold", hjust = 0.5),  # Customize title size, font, and position
+              axis.title.x = element_text(size = 10, face = "bold", hjust = 0.5, vjust = -0.5),  # Customize x-axis label
+              axis.title.y = element_text(size = 10, face = "bold", hjust = 0.5, vjust = 1.5),  # Customize y-axis label
+              axis.text.x = element_text(angle = 45, hjust = 1, size = 12),  # Customize x-axis text
+              axis.text.y = element_text(size = 10)  # Customize y-axis text
+          )
+
+print(two_gb)
+```
+
+
+## Identify stably expressed genes in the SCE objects
+```{r}
+# Order the row names
+sce_one <- sce_one[order(rownames(sce_one), decreasing = FALSE), ]
+sce_two <- sce_two[order(rownames(sce_two), decreasing = FALSE), ]
+
+# Identify the stably expressed genes
+sce_one_seg <- scSEGIndex(exprs(sce_one),return_all = TRUE)
+sce_two_seg <- scSEGIndex(exprs(sce_two),return_all = TRUE)
+```
+
+#### Find the top 1000 stable genes in the two datasets
+```{r}
+# Arrange in ascending order and select the first 1000 rows # Changed on 31-07-24
+sce_one_seg_1000 <- sce_one_seg %>%
+  arrange(segIdx)%>%
+  head(1000)
+
+sce_two_seg_1000 <- sce_two_seg %>%
+  arrange(segIdx)%>%
+  head(1000)
+
+# Extract the most stable gene names from the early human development dataset
+first_1000_genes <- rownames(as.data.frame(sce_one_seg_1000))
+#second_1000_genes <- rownames(as.data.frame(sce_two_seg_1000))
+
+# Find the common genes between the two data sets (NOT REQUIRED FOR ONE WAY)
+# final_stable_gene_list <- union(first_1000_genes, second_1000_genes)
+# unique_genes <- Filter(function(x) length(grep(x, final_stable_gene_list)) == 1, final_stable_gene_list)
+```
+
+#### Extract the stability index scores for those cumilative top stable genes
+```{r}
+# Create data frame from the results of scSEGIndex() 
+sce_one_seg_df <- as.data.frame(sce_one_seg)
+sce_two_seg_df <- as.data.frame(sce_two_seg)
+
+# Only retain the rows corresponding to the most stable genes in the first data set (E-MTAB-3929)
+sce_one_seg_df <- sce_one_seg_df[first_1000_genes,]
+sce_two_seg_df <- sce_two_seg_df[first_1000_genes,]
+
+# Sort the data frames in ascending order of segIdx column
+sce_one_seg_df <- sce_one_seg_df %>%
+  arrange(segIdx)
+
+sce_two_seg_df <- sce_two_seg_df %>%
+  arrange(segIdx)
+
+# A lot of the genes of the top 1000 genes from the early development data set has high zero percentages in embryonic stem cell data set and hence has NA for segIdx values
+
+# Assign ranks based on the segIdx column, ensuring NA values remain NA
+sce_one_seg_df$rank_one <- rank(sce_one_seg_df$segIdx, ties.method = "average", na.last = "keep")
+sce_two_seg_df$rank_two <- rank(sce_two_seg_df$segIdx, ties.method = "average", na.last = "keep")
+
+# Cross add rank columns using matching row names
+sce_one_seg_df$rank_two <- sce_two_seg_df[rownames(sce_one_seg_df),]$rank_two
+sce_two_seg_df$rank_one <- sce_one_seg_df[rownames(sce_two_seg_df),]$rank_one
+
+# Calculate the differences in ranks and add them as new columns
+sce_one_seg_df$rank_diff_one_two <- sce_one_seg_df$rank_one - sce_one_seg_df$rank_two
+sce_two_seg_df$rank_diff_two_one <- sce_two_seg_df$rank_two - sce_two_seg_df$rank_one
+
+
+# Rename the segIdx columns
+names(sce_one_seg_df)[names(sce_one_seg_df) == "segIdx"] <- "segIdx_one"
+names(sce_two_seg_df)[names(sce_two_seg_df) == "segIdx"] <- "segIdx_two"
+
+# Arrange the data frame in ascending order of segIdx values
+sce_one_seg_df <- sce_one_seg_df %>%
+  arrange(segIdx_one)
+
+sce_two_seg_df <- sce_two_seg_df %>%
+  arrange(segIdx_two)
+
+# Cross add the segIdx columns to the data frames
+sce_one_seg_df$segIdx_two <- sce_two_seg_df[rownames(sce_one_seg_df), "segIdx_two"]
+sce_two_seg_df$segIdx_one <- sce_one_seg_df[rownames(sce_two_seg_df), "segIdx_one"]
+
+# Compute the differences between the segIdx columns
+sce_one_seg_df$segIdx_one_vs_two <- sce_one_seg_df$segIdx_one - sce_one_seg_df$segIdx_two
+sce_two_seg_df$segIdx_two_vs_one <- sce_two_seg_df$segIdx_two - sce_two_seg_df$segIdx_one
+
+# Store the columns with NA values (NA values arose due to high percentage of zero number)
+na_rows_one <- sce_one_seg_df %>%
+  filter(is.na(segIdx_one_vs_two)) %>%
+  rownames()
+
+na_rows_two <- sce_two_seg_df %>%
+  filter(is.na(segIdx_two_vs_one)) %>%
+  rownames()
+```
+
+> A lot of the genes of the top 1000 genes from the early development data set has high zero percentages in embryonic stem cell data set and hence has NA for segIdx values
+
+#### Remove NA values from the segIdx difference columns
+```{r}
+# Remove rows with NA values in the segIdx column
+sce_one_seg_df <- sce_one_seg_df %>%
+  filter(!is.na(segIdx_one_vs_two))
+
+sce_two_seg_df <- sce_two_seg_df %>%
+  filter(!is.na(segIdx_two_vs_one))
+
+# Rename the data frames
+sce_one_df <- sce_one_seg_df
+sce_two_df <- sce_two_seg_df
+```
+
+## Add the external gene symbols to the seg data frames
+```{r}
+# Create new data frame containing the mapping of ensembl IDs to external gene name for the first dataset
+ensb_to_name_one <- data.frame(
+  gene = map_df_one$ensembl_gene_id,
+  external_gene_name = map_df_one$external_gene_name
+)
+
+# Create new data frame containing the mapping of ensembl IDs to external gene name for the second dataset
+ensb_to_name_two <- data.frame(
+  gene = map_df_two$ensembl_gene_id,
+  external_gene_name = map_df_two$external_gene_name
+)
+
+# Join the data frames using an inner join
+sce_one_df <- inner_join(sce_one_df, ensb_to_name_one, by = c("gene" = "gene"))
+sce_two_df <- inner_join(sce_two_df, ensb_to_name_two, by = c("gene" = "gene"))
+```
+
+## Remove rows that doesnt have a valid gene name (most likely long non coding RNA genes and pseudo genes)
+```{r}
+sce_one_df_clean <- sce_one_df %>%
+  filter(!is.na(external_gene_name) & external_gene_name != "")
+
+sce_two_df_clean <- sce_two_df %>%
+  filter(!is.na(external_gene_name) & external_gene_name != "")
+
+# Arrange the data frames in ascending order
+sce_one_df_clean <- sce_one_df_clean %>% arrange(segIdx_one)
+sce_two_df_clean <- sce_two_df_clean %>% arrange(segIdx_two)
+```
+
+## Prepare the input list for GSEA using the segIdx difference as the value
+```{r}
+# Create named vector list
+sce_one_lst_segidx <- setNames(sce_one_df_clean$segIdx_one_vs_two, sce_one_df_clean$external_gene_name)
+sce_two_lst_segidx <- setNames(sce_two_df_clean$segIdx_two_vs_one, sce_two_df_clean$external_gene_name)
+```
+
+## Prepare the input list for GSEA using the rank difference as the value
+```{r}
+# Create named vector list
+sce_one_lst_rank <- setNames(sce_one_df_clean$rank_diff_one_two, sce_one_df_clean$external_gene_name)
+sce_two_lst_rank <- setNames(sce_two_df_clean$rank_diff_two_one, sce_two_df_clean$external_gene_name)
+```
+
+## Save the lists and ranks
+```{r}
+# Save named vectors as CSV files
+write.csv(data.frame(gene_name = names(sce_one_lst_segidx), segIdx = sce_one_lst_segidx), "sce_one_lst_segidx.csv", row.names = FALSE)
+write.csv(data.frame(gene_name = names(sce_two_lst_segidx), segIdx = sce_two_lst_segidx), "sce_two_lst_segidx.csv", row.names = FALSE)
+
+write.csv(data.frame(gene_name = names(sce_one_lst_rank), rank_diff = sce_one_lst_rank), "sce_one_lst_rank.csv", row.names = FALSE)
+write.csv(data.frame(gene_name = names(sce_two_lst_rank), rank_diff = sce_two_lst_rank), "sce_two_lst_rank.csv", row.names = FALSE)
+
+# Save named vectors as RDS files
+saveRDS(sce_one_lst_segidx, "sce_one_lst_segidx.rds")
+saveRDS(sce_two_lst_segidx, "sce_two_lst_segidx.rds")
+
+saveRDS(sce_one_lst_rank, "sce_one_lst_rank.rds")
+saveRDS(sce_two_lst_rank, "sce_two_lst_rank.rds")
+```
+
+
+## Retrive the pathway lists from molecular signatures database
+```{r}
+library(fgsea)
+library(msigdb)
+library(ExperimentHub)
+library(GSEABase)
+# Retrieve the MSigDB (Molecular Signatures Database) for Homo sapiens (human) using gene symbols (version 7.5.1)
+# SYM is for gene symbols other possible values:'ENTREZ', 'ENSEMBL', 'REFSEQ', 'UNIPROT', 'HGNC'
+msigdb.hs = getMsigdb(org = 'hs', id = 'SYM', version = '7.5.1')
+msigdb.hs = appendKEGG(msigdb.hs)
+msigdb.hs.list <- geneIds(msigdb.hs)
+
+save(msigdb.hs.list, file = "./final_msigdb_hs_list.RData")
+```
+
+## Perform GSEA the list with segIdx difference as values
+```{r}
+# for the first subset
+fgsea_one_segidx <- fgsea(pathways = msigdb.hs.list, stats = sce_one_lst_segidx, minSize = 5, maxSize = 1000, nPermSimple = 100000)
+fgsea_one_segidx <- fgsea_one_segidx %>%
+  arrange(padj, desc(abs(NES)))
+
+# for the second subset
+fgsea_two_segidx <- fgsea(pathways = msigdb.hs.list, stats = sce_two_lst_segidx, minSize = 5, maxSize = 1000, nPermSimple = 100000)
+fgsea_two_segidx <- fgsea_two_segidx %>%
+  arrange(padj, desc(abs(NES)))
+```
+
+## Perform GSEA the list with rank difference as values
+```{r}
+# for the first subset
+fgsea_one_rank <- fgsea(pathways = msigdb.hs.list, stats = sce_one_lst_rank, minSize = 5, maxSize = 1000, nPermSimple = 100000)
+fgsea_one_rank <- fgsea_one_rank %>%
+  arrange(padj, desc(abs(NES)))
+
+# for the second subset
+fgsea_two_rank <- fgsea(pathways = msigdb.hs.list, stats = sce_two_lst_rank, minSize = 5, maxSize = 1000, nPermSimple = 100000)
+fgsea_two_rank <- fgsea_two_rank %>%
+  arrange(padj, desc(abs(NES)))
+```
+
+> Warning in preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
+  There are ties in the preranked stats (15.82% of the list).
+The order of those tied genes will be arbitrary, which may produce unexpected results.
+Warning in preparePathwaysAndStats(pathways, stats, minSize, maxSize, gseaParam,  :
+  There are ties in the preranked stats (15.82% of the list).
+The order of those tied genes will be arbitrary, which may produce unexpected results.
+Warning in fgseaMultilevel(pathways = pathways, stats = stats, minSize = minSize,  :
+  For some of the pathways the P-values were likely overestimated. For such pathways log2err is set to NA.
+
+## Save the GSEA results
+```{r}
+library(jsonlite)
+
+# Function to convert list columns to JSON strings
+convert_list_columns_to_json <- function(df) {
+  list_columns <- sapply(df, is.list)
+  df[list_columns] <- lapply(df[list_columns], function(col) {
+    sapply(col, jsonlite::toJSON, auto_unbox = TRUE)
+  })
+  return(df)
+}
+
+# Convert the list to dataframe
+fgsea_one_segidx <- convert_list_columns_to_json(as.data.frame(fgsea_one_segidx))
+fgsea_two_segidx <- convert_list_columns_to_json(as.data.frame(fgsea_two_segidx))
+fgsea_one_rank <- convert_list_columns_to_json(as.data.frame(fgsea_one_rank))
+fgsea_two_rank <- convert_list_columns_to_json(as.data.frame(fgsea_two_rank))
+
+# Save as csv files
+write.csv(fgsea_one_segidx, file = "./fgsea_one_segidx.csv", row.names = FALSE)
+write.csv(fgsea_two_segidx, file = "./fgsea_two_segidx.csv", row.names = FALSE)
+write.csv(fgsea_one_rank, file = "./fgsea_one_rank.csv", row.names = FALSE)
+write.csv(fgsea_two_rank, file = "./fgsea_two_rank.csv", row.names = FALSE)
+```
+
+## Save session data and history
+```{r}
+save.image(file = "./emtab3929vsgse75748_one_way.RData")
+savehistory(file = "./emtab3929vsgse75748_one_way")
+writeLines(capture.output(sessionInfo()), "./emtab3929vsgse75748_one_way.txt")
+```
