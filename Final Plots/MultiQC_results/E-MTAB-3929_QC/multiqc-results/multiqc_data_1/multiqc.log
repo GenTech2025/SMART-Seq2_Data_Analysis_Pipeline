@@ -1,0 +1,9 @@
+[2024-07-15 23:34:05,040] multiqc.core.version_check                         [WARNING]  MultiQC Version v1.23 now available!
+[2024-07-15 23:34:05,041] multiqc.core.file_search                           [INFO   ]  Search path: /scratch1/s2599932/E-MTAB-3929/fastqc-results
+[2024-07-15 23:34:05,041] multiqc.core.file_search                           [INFO   ]  Search path: /scratch1/s2599932/E-MTAB-3929/mapped-reads
+[2024-07-15 23:37:40,951] multiqc.modules.star.star                          [INFO   ]  Found 1529 reports
+[2024-07-15 23:38:28,729] multiqc.modules.fastqc.fastqc                      [INFO   ]  Found 1529 reports
+[2024-07-15 23:39:12,518] multiqc.core.write_results                         [INFO   ]  Existing reports found, adding suffix to filenames. Use '--force' to overwrite.
+[2024-07-15 23:39:13,114] multiqc.core.write_results                         [INFO   ]  Data        : ../E-MTAB-3929/multiqc-results/multiqc_data_1
+[2024-07-15 23:39:13,347] multiqc.core.write_results                         [INFO   ]  Report      : ../E-MTAB-3929/multiqc-results/multiqc_report_1.html
+[2024-07-15 23:39:13,351] multiqc.multiqc                                    [INFO   ]  MultiQC complete

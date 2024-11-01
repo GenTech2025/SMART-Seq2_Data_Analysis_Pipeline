@@ -1,0 +1,6 @@
+[2024-07-10 17:36:19,730] multiqc.core.version_check                         [WARNING]  MultiQC Version v1.23 now available!
+[2024-07-10 17:36:19,731] multiqc.core.file_search                           [INFO   ]  Search path: /scratch1/s2599932/GSE75748/fastq-files/fastqc-results
+[2024-07-10 17:38:07,482] multiqc.modules.fastqc.fastqc                      [INFO   ]  Found 1810 reports
+[2024-07-10 17:38:57,598] multiqc.core.write_results                         [INFO   ]  Data        : ../GSE75748/fastq-files/multiqc-results/multiqc_data
+[2024-07-10 17:38:57,821] multiqc.core.write_results                         [INFO   ]  Report      : ../GSE75748/fastq-files/multiqc-results/multiqc_report.html
+[2024-07-10 17:38:57,826] multiqc.multiqc                                    [INFO   ]  MultiQC complete
