@@ -38,7 +38,6 @@ coefficient_of_variation <- function(x){
 
 ```{r read_data, message=FALSE, warning=FALSE}
 es_targets <- read.table("/home/s2599932/mouse-dataset/E-MTAB-2600/E-MTAB-2600.targets.txt", sep = "\t", header = TRUE, row.names = "ERR") # Metadata
-
 es_raw <- readRDS("/home/s2599932/mouse-dataset/E-MTAB-2600/single_es_tximport.rds") # Counts data
 ```
 
@@ -58,9 +57,20 @@ es_sce <- SingleCellExperiment(assays=list(counts = es_raw$counts, abundance = e
 
 
 ```{r calculating_qc_metrics, message=FALSE, warning=FALSE}
-is_spike <- grepl("^ERCC",rownames(es_sce))
-mitogenes <- "ENSMUSG00000064336|ENSMUSG00000064337|ENSMUSG00000064338|ENSMUSG00000064339|ENSMUSG00000064340|ENSMUSG00000064341|ENSMUSG00000064342|ENSMUSG00000064343|ENSMUSG00000064344|ENSMUSG00000064345|ENSMUSG00000064346|ENSMUSG00000064347|ENSMUSG00000064348|ENSMUSG00000064349|ENSMUSG00000064350|ENSMUSG00000064351|ENSMUSG00000064352|ENSMUSG00000064353|ENSMUSG00000064354|ENSMUSG00000064355|ENSMUSG00000064356|ENSMUSG00000064357|ENSMUSG00000064358|ENSMUSG00000064359|ENSMUSG00000064360|ENSMUSG00000064361|ENSMUSG00000065947|ENSMUSG00000064363|ENSMUSG00000064364|ENSMUSG00000064365|ENSMUSG00000064366|ENSMUSG00000064367|ENSMUSG00000064368|ENSMUSG00000064369|ENSMUSG00000064370|ENSMUSG00000064371|ENSMUSG00000064372"
-is_mito <- grepl(mitogenes, rownames(es_sce))
+library(biomaRt)
+
+# Connect to the Ensembl BioMart database
+ensembl <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+
+# Retrieve mitochondrial genes
+mito_genes <- getBM(attributes = c("ensembl_gene_id"), 
+                    filters = "chromosome_name", 
+                    values = "MT", 
+                    mart = ensembl)
+
+# Create logical vectors for spike-in and mitochondrial genes
+is_spike <- grepl("^ERCC", rownames(es_sce))
+is_mito <- rownames(es_sce) %in% mito_genes$ensembl_gene_id
 
 es_sce$qc_stats <- perCellQCMetrics(es_sce, subsets=list(ERCC=is_spike, Mt=is_mito))
 ```
@@ -889,7 +899,7 @@ selected_cell_types <- subset(so_raw_copy, subset = Type %in% c("2i", "a2i", "se
 
 # Create the violin plot for the selected cell types with enhanced aesthetics
 p <- VlnPlot(selected_cell_types, features = "ENSMUSG00000031311", group.by = "Type", 
-             pt.size = 0.1) +
+             pt.size = 0.1) +  # Added trim for symmetry
     ggtitle("Expression of Nono Across Different Cell Types") +
     theme_minimal(base_size = 15) +
     labs(y = "Expression Level", x = "Cell Type") +
@@ -898,71 +908,19 @@ p <- VlnPlot(selected_cell_types, features = "ENSMUSG00000031311", group.by = "T
         axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
         legend.position = "right",
-        panel.grid.major = element_line(color = "grey80")
+        panel.grid.major = element_line(color = "grey80"),
+        panel.grid.minor = element_blank()  # Optional: remove minor grid lines for cleaner look
     ) +
-    scale_fill_manual(values = c("2i" = "#E69F00", "a2i" = "#56B4E9", "serum" = "#009E73"))
+    scale_fill_manual(values = c("2i" = "red", "a2i" = "blue", "serum" = "green"))  # Updated colors
 
-tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/violin_plot_nono_expression.tiff", width = 12, height = 8, units = "in", res = 300)
+# Print the enhanced plot
 print(p)
-dev.off()
+
 ```
 
 ```{r}
 print(p)
 ```
-
-
-Let's interpret the violin plot step by step:
-
-### Title and Axes
-
-1. **Title**: "Expression of Nono Across different Cell Types"
-   - This tells us that the plot is showing the expression levels of the gene Nono in different cell types.
-
-2. **Y-axis**: "Expression Level"
-   - The y-axis represents the level of gene expression. Higher values indicate higher expression levels.
-
-3. **X-axis**: "Cell Type"
-   - The x-axis represents different cell types: "2i", "a2i", and "serum".
-
-### Violin Plots
-
-Each violin plot represents the distribution of Nono gene expression levels within each cell type.
-
-1. **2i (Red)**
-   - The distribution is wide and mostly concentrated between expression levels 1 and 3.
-   - The shape indicates that most cells have expression levels around 2, with fewer cells at the extremes (near 0 and 3).
-
-2. **a2i (Green)**
-   - The distribution is narrower compared to the 2i cell type.
-   - It shows a peak around an expression level of 1, suggesting that most cells have lower expression levels.
-   - There are still some cells with higher expression levels, but these are less common.
-
-3. **Serum (Blue)**
-   - This distribution is similar in width to the 2i cell type but with more concentration towards lower expression levels.
-   - The expression levels are spread out between 0 and 3, with a higher density around levels 1 and 2.
-
-### Interpretation
-
-1. **Comparison of Expression Levels Across Cell Types**:
-   - The 2i cell type has a broader distribution of Nono expression levels, suggesting more variability within this cell type.
-   - The a2i cell type shows lower and more consistent expression levels, indicating less variability.
-   - The serum cell type has a moderate spread with a slight skew towards lower expression levels compared to the 2i cell type.
-
-2. **Density and Distribution**:
-   - The density of points inside each violin indicates the concentration of cells at specific expression levels. 
-   - In the 2i and serum cell types, the expression levels are more spread out, whereas in the a2i cell type, they are more tightly grouped.
-
-### Summary
-
-- **2i cells** have a broad range of Nono expression, indicating high variability.
-- **a2i cells** tend to have lower and more uniform Nono expression.
-- **Serum cells** show moderate variability with a tendency towards lower expression levels compared to 2i cells.
-
-This visualization effectively demonstrates the differences in Nono gene expression across these three cell types, highlighting both the central tendency and the spread of expression levels within each cell type.
-
-
-
 
 ```{r nono_dot_plot}
 tiff("/home/s2599932/dissertation-main/plots/reproduced-old-dissertation/additional-plots/nono_dot_plot.tiff", width = 12, height = 8, units = "in", res = 300)
