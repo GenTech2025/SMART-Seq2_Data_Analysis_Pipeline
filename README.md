@@ -4,14 +4,14 @@ This project was a part of my master's degree and which revisits and extends upo
 
 <h2>Different Stages of the Project</h2>
 <p>
-  This project started out as an exploratory project where the main goal was to establish that if a similar algorithm that was implemented in a previous study on mouse datasets at the <a href="https://regenerative-medicine.ed.ac.uk/research/simon-tomlinson">Tomlinson Laboratory</a> could be possibly to applied to human single cell RNA sequencing datasets, with an improved and more refined version of the earlier algorithm.
-    However, Once the project was started previously unasked questions started to arise with the advancements of the project and hence the project has been divided into four major parts with each part answering a specific question as well as laying the fondation for the steps ahead.<br>
-    <ol>
-      <li>Part One : Re-evaluation and replication of findings from the previous study and Investigation into discrepancies in PCA results generated using Seurat’s RunPCA() function.</li>
-      <li>Part Two : Analysis of raw FASTQ files of human single cell RNA sequening dataset generated using SMART-Seq2 protocol </li>
-      <li>Part Three: Implementation of a refined version of the previous algorithm on two human single-cell RNA sequencing datasets. Analysis and Interpretation of transcriptional changes between human embryonic stem cells and cells from early human development.</li>
-    </ol>
+  This project began as an exploratory study, with the primary goal of determining if an improved and more refined version of an algorithm previously applied to mouse datasets in a study at the <a href="https://regenerative-medicine.ed.ac.uk/research/simon-tomlinson">Tomlinson Laboratory</a> could be adapted for human single-cell RNA sequencing datasets. However, as the project progressed, new questions emerged, leading to its division into four major parts, each addressing a specific question and providing a foundation for the next steps.<br>
+  <ol>
+    <li>Part One: Re-evaluation and replication of findings from the previous study, along with investigation into discrepancies in PCA results generated using Seurat’s RunPCA() function.</li>
+    <li>Part Two: Analysis of raw FASTQ files from a human single-cell RNA sequencing dataset generated using the SMART-Seq2 protocol.</li>
+    <li>Part Three: Implementation of a refined version of the previous algorithm on two human single-cell RNA sequencing datasets. Analysis and interpretation of transcriptional changes between human embryonic stem cells and cells from early human development.</li>
+  </ol>
 </p>
+
 
 <h2>Novel Algorithm To Find the Transcriptomics Differences between Two Cell Types/Groups/Stages</h2>
 <p>
