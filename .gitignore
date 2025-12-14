@@ -4,3 +4,6 @@
 *.csv
 *.tsv
 *.txt
+
+# Ignore temporary files
+rough.md
