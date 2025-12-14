@@ -1,14 +1,6 @@
-# Ignore all files with .rds extension
+# Ignore large data files
 *.rds
-
-# Ignore all files with .RData extension
 *.RData
-
-# Ignore all files with .csv extension
 *.csv
-
-# Ignore all files with .tsv extension
 *.tsv
-
-# Ignore all files with .txt extension
 *.txt
