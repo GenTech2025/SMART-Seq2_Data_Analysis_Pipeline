@@ -1,9 +1,6 @@
 # Ignore large data files
 *.rds
 *.RData
-*.csv
-*.tsv
-*.txt
 
 # Ignore temporary files
 rough.md

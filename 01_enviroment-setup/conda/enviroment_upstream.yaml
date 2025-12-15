@@ -1,0 +1,49 @@
+name: plate-based-scrnaseq_upstream
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  # ---------- CLI Tools ----------
+  - fastqc=0.11.9
+  - multiqc=1.22.3
+  - trimmomatic=0.39
+  - star=2.7.10a
+  - subread=2.0.3
+  - samtools
+  - bedtools
+  - parallel
+
+  # ---------- R Base and Packages ----------
+  - r-base=4.4.1
+  - r-essentials
+  - pandoc
+  - r-tidyverse=2.0.0
+  - r-data.table=1.15.4
+  - r-ggplot2=3.5.1
+  - r-dplyr=1.1.4
+  - r-tidyr=1.3.1
+  - r-readr=2.1.5
+  - r-stringr=1.5.1
+  - r-purrr=1.0.2
+  - r-tibble=3.2.1
+  - r-lubridate=1.9.3
+  - r-jsonlite=1.8.8
+  - r-pheatmap=1.0.12
+  - r-cowplot=1.1.3
+  - r-rcolorbrewer=1.1_3
+
+  # ---------- Bioconductor Packages ----------
+  - bioconductor-biomart=2.60.1
+  - bioconductor-geoquery=2.72.0
+  - bioconductor-gseabase=1.66.0
+  - bioconductor-experimenthub=2.12.0
+  - bioconductor-annotationhub=3.12.0
+  - bioconductor-annotationdbi=1.66.0
+  - bioconductor-genomicranges=1.56.1
+  - bioconductor-summarizedexperiment=1.34.0
+  - bioconductor-singlecellexperiment=1.26.0
+
+  # ---------- Python for MultiQC ----------
+  - python=3.11

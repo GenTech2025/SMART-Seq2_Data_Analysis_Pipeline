@@ -1,0 +1,80 @@
+name: plate-based-scrnaseq_downstream
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+    # Core system
+  - r-base=4.4.1
+  - r-essentials
+  - r-devtools
+  - r-remotes
+  - pandoc
+
+  # CRAN packages
+  - r-ggplot2=3.5.1
+  - r-dplyr=1.1.4
+  - r-tidyr=1.3.1
+  - r-readr=2.1.5
+  - r-purrr=1.0.2
+  - r-tibble=3.2.1
+  - r-stringr=1.5.1
+  - r-forcats=1.0.0
+  - r-lubridate=1.9.3
+  - r-cowplot=1.1.3
+  - r-pheatmap=1.0.12
+  - r-rcolorbrewer=1.1_3
+  - r-patchwork=1.2.0
+  - r-matrix=1.7_0
+  - r-data.table=1.15.4
+
+  # Seurat ecosystem
+  - r-seurat=5.1.0
+  - r-seuratobject=5.0.2
+  - r-sctransform=0.4.1
+  - r-uwot=0.2.2
+  - r-leiden=0.4.3.1
+  - r-reticulate=1.38.0
+
+  # Bioconductor core (Bioc 3.19)
+  - bioconductor-biocgenerics=0.50.0
+  - bioconductor-s4vectors=0.42.0
+  - bioconductor-iranges=2.38.0
+  - bioconductor-genomicranges=1.56.1
+  - bioconductor-summarizedexperiment=1.34.0
+  - bioconductor-singlecellexperiment=1.26.0
+  - bioconductor-delayedarray=0.30.1
+  - bioconductor-matrixgenerics=1.16.0
+  - bioconductor-matrixstats=1.3.0
+
+  # Single-cell Bioconductor tools
+  - bioconductor-scran=1.32.0
+  - bioconductor-scater=1.32.0
+  - bioconductor-scuttle=1.14.0
+  - bioconductor-scmerge=1.20.0
+  - bioconductor-batchelor=1.20.0
+  - bioconductor-biocsingular=1.20.0
+  - bioconductor-biocneighbors=1.22.0
+
+  # Annotation & databases
+  - bioconductor-biomaRt=2.60.1
+  - bioconductor-experimenthub=2.12.0
+  - bioconductor-annotationhub=3.12.0
+  - bioconductor-annotationdbi=1.66.0
+  - bioconductor-genomeinfodb=1.40.1
+  - bioconductor-genomeinfodbdata=1.2.12
+
+  # GSEA / pathway analysis
+  - bioconductor-fgsea=1.30.0
+  - bioconductor-gseabase=1.66.0
+  - bioconductor-msigdb=1.12.0
+  - bioconductor-geoquery=2.72.0
+
+  # Visualization
+  - bioconductor-complexheatmap=2.20.0
+
+  # Optional but recommended
+  - r-plotly
+  - r-shiny
+  - r-rmarkdown
