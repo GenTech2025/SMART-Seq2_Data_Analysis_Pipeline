@@ -1,6 +1,0 @@
-[2024-07-14 16:09:54,390] multiqc.core.version_check                         [WARNING]  MultiQC Version v1.23 now available!
-[2024-07-14 16:09:54,391] multiqc.core.file_search                           [INFO   ]  Search path: /scratch1/s2599932/E-MTAB-3929/fastqc-results
-[2024-07-14 16:11:18,999] multiqc.modules.fastqc.fastqc                      [INFO   ]  Found 1529 reports
-[2024-07-14 16:11:57,797] multiqc.core.write_results                         [INFO   ]  Data        : ../E-MTAB-3929/multiqc-results/multiqc_data
-[2024-07-14 16:11:58,023] multiqc.core.write_results                         [INFO   ]  Report      : ../E-MTAB-3929/multiqc-results/multiqc_report.html
-[2024-07-14 16:11:58,028] multiqc.multiqc                                    [INFO   ]  MultiQC complete
