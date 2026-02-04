@@ -4,9 +4,8 @@ This project was a part of my master's degree and which revisits and extends upo
 
 <h2>Different Stages of the Project</h2>
 
-<p align="center">
-<img src="../Final_Plots/dissertation-stage-overview.png" alt="Alt text" width="600">
-</p>
+<!-- TODO: Add dissertation-stage-overview.png diagram -->
+<!-- Image placeholder: Project stages overview diagram -->
 
 <p>
   This project began as an exploratory study, with the primary goal of determining if an improved and more refined version of an algorithm previously applied to mouse datasets in a study at the <a href="https://regenerative-medicine.ed.ac.uk/research/simon-tomlinson">Tomlinson Laboratory</a> could be adapted for human single-cell RNA sequencing datasets. However, as the project progressed, new questions emerged, leading to its division into four major parts, each addressing a specific question and providing a foundation for the next steps.<br>
@@ -23,7 +22,6 @@ This project was a part of my master's degree and which revisits and extends upo
   The image below illustrates the different steps of the novel algorithm, which utilizes the concept of stably expressed genes as defined by <a href="https://doi.org/10.1093/gigascience/giz106">Yingxin et al 2019</a>. It combines gene set enrichment analysis to identify the intricate transcriptional changes that occur at the fundamental level. These changes shift the expression of the most stable genes between two conditions, providing insights into the key differences between the conditions.
 </p>
 
-<p align="center">
-<img src="../Final_Plots/fgsea-algorithm.png" alt="Alt text" width="600">
-</p>
+<!-- TODO: Add fgsea-algorithm.png diagram -->
+<!-- Image placeholder: FGSEA algorithm workflow diagram -->
 
