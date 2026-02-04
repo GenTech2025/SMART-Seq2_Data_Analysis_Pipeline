@@ -1,5 +1,5 @@
 ---
-title: "fastq-to-counts"
+title: "FASTQ to Counts Matrix Pipeline"
 author: "Sourav Roy (s2599932)"
 date: "`r Sys.Date()`"
 output: html_document
@@ -9,416 +9,298 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 ```
 
-# **Pre-processing pipeline for plate based scRNAseq experiment dataset (Note code is not to be executed in this rmd file)**
+# Pre-processing Pipeline for SMART-Seq2 scRNA-seq Data
 
-## Versions of the softwares and tools used in this pipeline
+This document outlines the upstream processing pipeline to convert raw FASTQ files into a gene expression count matrix. Each bash script is designed to be run independently after setting the appropriate paths.
+
+**Note:** Code chunks are set to `eval = FALSE` - copy and run scripts separately in terminal.
+
+## Software Versions
+
+| Tool | Version |
+|------|---------|
+| FastQC | 0.11.9 |
+| MultiQC | 1.22.3 |
+| Trimmomatic | 0.39 |
+| STAR | 2.7.10a |
+| featureCounts | 2.0.3 |
 
 ---
 
-- FastQC : version 0.11.9
-- MultiQC : version 1.22.3
-- Trimmomatic : version 0.39
-- STAR : version 2.7.10a
-- featureCounts : version 2.0.3
-- parallel : 20210822+ds
+## Step 1: Quality Control with FastQC and MultiQC
+
+Run FastQC on all FASTQ files, then aggregate reports with MultiQC.
+
+```{bash}
+#!/bin/bash
+
+# Set paths
+INPUT_DIR="/path/to/fastq/files"
+FASTQC_OUT="$INPUT_DIR/fastqc-results"
+MULTIQC_OUT="$INPUT_DIR/multiqc-results"
+
+# Create output directories
+mkdir -p "$FASTQC_OUT"
+mkdir -p "$MULTIQC_OUT"
+
+# Run FastQC on all fastq files
+fastqc -o "$FASTQC_OUT" "$INPUT_DIR"/*.fastq
+
+# Aggregate results with MultiQC
+multiqc "$FASTQC_OUT" -o "$MULTIQC_OUT"
+```
 
 ---
 
-#### Initial quality control using **FastQC** and use **MultiQC** to combine the results
+## Step 2: Read Trimming with Trimmomatic (If required)
+
+Trim reads to 50bp using CROP.
+
 ```{bash}
 #!/bin/bash
 
-read -p "Please enter the input directory: " input_dir
-read -p "Is the data single-end or paired-end? (Enter 'SE' or 'PE'): " data_type
-read -p "Please enter the number of cores to use: " num_cores
+# Set paths
+INPUT_DIR="/path/to/fastq/files"
+OUTPUT_DIR="/path/to/trimmed/output"
+TRIMMOMATIC_JAR="/path/to/trimmomatic.jar"
 
-fastqc_output_dir="$input_dir/fastqc-results"
-multiqc_output_dir="$input_dir/multiqc-results"
+mkdir -p "$OUTPUT_DIR"
 
-mkdir -p "$fastqc_output_dir"
-mkdir -p "$multiqc_output_dir"
+# Trim each fastq file
+for fastq_file in "$INPUT_DIR"/*.fastq; do
+    base_name=$(basename "$fastq_file" .fastq)
+    output_file="$OUTPUT_DIR/${base_name}_trimmed.fastq"
 
-# Function to run FastQC for single-end data
-run_fastqc_se() {
-    fastq_file=$1
-    fastqc -o "$fastqc_output_dir" "$fastq_file"
-}
+    java -jar "$TRIMMOMATIC_JAR" SE -phred33 \
+        "$fastq_file" \
+        "$output_file" \
+        CROP:50
 
-# Function to run FastQC for paired-end data
-run_fastqc_pe() {
-    fastq_file1=$1
-    fastq_file2=$2
-    fastqc -o "$fastqc_output_dir" "$fastq_file1" "$fastq_file2"
-}
-
-export -f run_fastqc_se
-export -f run_fastqc_pe
-export fastqc_output_dir
-
-# Process files based on data type
-if [ "$data_type" == "SE" ]; then
-    # Find all single-end FASTQ files and process them in parallel
-    find $input_dir -name "*.fastq" | parallel -j $num_cores run_fastqc_se {}
-elif [ "$data_type" == "PE" ]; then
-    # Find all paired-end FASTQ files and process them in parallel
-    find $input_dir -name "*_R1.fastq" | while read file1; do
-        file2=$(echo $file1 | sed 's/_R1.fastq/_R2.fastq/')
-        if [ -f "$file2" ]; then
-            echo "$file1 $file2"
-        else
-            echo "Warning: Paired file for $file1 not found" >&2
-        fi
-    done | parallel -j $num_cores --colsep ' ' run_fastqc_pe
-else
-    echo "Invalid data type. Please enter 'SE' for single-end or 'PE' for paired-end."
-    exit 1
-fi
-
-# Run MultiQC to include both FastQC and STAR alignment information
-multiqc "$fastqc_output_dir" -o "$multiqc_output_dir"
-
-echo "FastQC and MultiQC processing complete."
-
-```
-
-#### Use **Trimmomatic** to trim low quality reads (for both SE and PE data)
-```{bash}
-#!/bin/bash
-
-read -p "Please enter the input directory: " input_dir
-read -p "Please enter the output directory: " output_dir
-read -p "Please enter the path to Trimmomatic JAR file: " trimmomatic_path
-read -p "Please enter the number of cores to use: " num_cores
-read -p "Is the data single-end or paired-end? (Enter 'SE' or 'PE'): " data_type
-
-mkdir -p $output_dir
-
-# Function to run Trimmomatic for single-end data
-run_trimmomatic_se() {
-    fastq_file=$1
-    base_name=$(basename $fastq_file .fastq)
-    output_file="$output_dir/${base_name}_trimmed.fastq"
-
-    java -jar $trimmomatic_path SE -phred33 $fastq_file $output_file CROP:50
-
-    echo "Trimmed $fastq_file and saved to $output_file"
-}
-
-# Function to run Trimmomatic for paired-end data
-run_trimmomatic_pe() {
-    fastq_file1=$1
-    fastq_file2=$2
-    base_name1=$(basename $fastq_file1 .fastq)
-    base_name2=$(basename $fastq_file2 .fastq)
-    output_file1="$output_dir/${base_name1}_trimmed.fastq"
-    output_file2="$output_dir/${base_name2}_trimmed.fastq"
-
-    java -jar $trimmomatic_path PE -phred33 $fastq_file1 $fastq_file2 $output_file1 $output_file1.unpaired.fastq $output_file2 $output_file2.unpaired.fastq CROP:50
-
-    echo "Trimmed $fastq_file1 and $fastq_file2 and saved to $output_file1 and $output_file2"
-}
-
-export -f run_trimmomatic_se
-export -f run_trimmomatic_pe
-export trimmomatic_path
-export output_dir
-
-# Process files based on data type
-if [ "$data_type" == "SE" ]; then
-    # Find all single-end FASTQ files and process them in parallel
-    find $input_dir -name "*.fastq" | parallel -j $num_cores run_trimmomatic_se {}
-elif [ "$data_type" == "PE" ]; then
-    # Find all paired-end FASTQ files and process them in parallel
-    find $input_dir -name "*_R1.fastq" | while read file1; do
-        file2=$(echo $file1 | sed 's/_R1.fastq/_R2.fastq/')
-        if [ -f "$file2" ]; then
-            echo "$file1 $file2"
-        else
-            echo "Warning: Paired file for $file1 not found" >&2
-        fi
-    done | parallel -j $num_cores --colsep ' ' run_trimmomatic_pe
-else
-    echo "Invalid data type. Please enter 'SE' for single-end or 'PE' for paired-end."
-    exit 1
-fi
-
-echo "Trimming complete for all files."
-
-```
-
-#### Download the human genome fasta file and annotation gtf file
-```{bash}
-#!/bin/bash
-cd /scratch1/s2599932/pre-processing/reference-genome/fasta
-# Download the human genome fasta file
-wget https://ftp.ensembl.org/pub/release-112/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa.gz
-
-# Download the human genome annotation file
-wget https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh38.112.gtf.gz
-```
-
-#### Use **STAR** to create the reference genome index
-```{bash}
-#!/bin/bash
-
-read -p "Please enter the number of cores to use: " num_cores
-read -p "Please enter the genome directory: " genome_dir
-read -p "Please enter the path to the genome fasta file: " genome_fasta_file
-read -p "Please enter the path to the annotation .gtf file: " annotation_gtf_file
-read -p "Please enter the sjdbOverhang value: " sjdb_overhang
-
-# Run STAR to generate the reference genome
-STAR --runThreadN $num_cores \
-     --runMode genomeGenerate \
-     --genomeDir $genome_dir \
-     --genomeFastaFiles $genome_fasta_file \
-     --sjdbGTFfile $annotation_gtf_file \
-     --sjdbOverhang $sjdb_overhang
-
-echo "Reference genome generation complete."
-
-```
-
-#### Align the reads using **STAR** to the reference genome 
-```{bash}
-#!/bin/bash
-
-read -p "Please enter the input directory: " input_dir
-read -p "Please enter the output directory: " output_dir
-read -p "Please enter the genome directory: " genome_dir
-read -p "Is the data single-end or paired-end? (Enter 'SE' or 'PE'): " data_type
-
-if [ "$data_type" == "PE" ]; then
-    read -p "Is the paired-end data trimmed? (Enter 'yes' or 'no'): " trimmed
-fi
-
-read -p "Please enter the number of cores to use: " num_cores
-
-mkdir -p "$output_dir"
-
-if [ "$data_type" == "SE" ]; then
-    for fastq_file in ${input_dir}/*.fastq
-    do
-        base_name=$(basename ${fastq_file} .fastq)
-        output_prefix="${output_dir}/${base_name}_"
-        
-        STAR --runThreadN $num_cores \
-             --genomeDir ${genome_dir} \
-             --readFilesIn ${fastq_file} \
-             --outFileNamePrefix ${output_prefix} \
-             --outSAMtype BAM SortedByCoordinate
-    done
-elif [ "$data_type" == "PE" ]; then
-    if [ "$trimmed" == "yes" ]; then
-        for fastq_file1 in ${input_dir}/*_R1_trimmed.fastq
-        do
-            fastq_file2=$(echo $fastq_file1 | sed 's/_R1_trimmed.fastq/_R2_trimmed.fastq/')
-            if [ ! -f "$fastq_file2" ]; then
-                echo "Warning: Paired file for $fastq_file1 not found" >&2
-                continue
-            fi
-
-            base_name=$(basename ${fastq_file1} _R1_trimmed.fastq)
-            output_prefix="${output_dir}/${base_name}_"
-            
-            STAR --runThreadN $num_cores \
-                 --genomeDir ${genome_dir} \
-                 --readFilesIn ${fastq_file1} ${fastq_file2} \
-                 --outFileNamePrefix ${output_prefix} \
-                 --outSAMtype BAM SortedByCoordinate
-        done
-    else
-        for fastq_file1 in ${input_dir}/*_R1.fastq
-        do
-            fastq_file2=$(echo $fastq_file1 | sed 's/_R1.fastq/_R2.fastq/')
-            if [ ! -f "$fastq_file2" ]; then
-                echo "Warning: Paired file for $fastq_file1 not found" >&2
-                continue
-            fi
-
-            base_name=$(basename ${fastq_file1} _R1.fastq)
-            output_prefix="${output_dir}/${base_name}_"
-            
-            STAR --runThreadN $num_cores \
-                 --genomeDir ${genome_dir} \
-                 --readFilesIn ${fastq_file1} ${fastq_file2} \
-                 --outFileNamePrefix ${output_prefix} \
-                 --outSAMtype BAM SortedByCoordinate
-        done
-    fi
-else
-    echo "Invalid data type. Please enter 'SE' for single-end or 'PE' for paired-end."
-    exit 1
-fi
-
-echo "STAR alignment complete."
-
-```
-
-### Check the quality of alignment using **samtools** (optional)
-```{bash}
-#!/bin/bash
-
-# Prompt the user to input the output directory
-read -p "Enter the output directory where BAM files are located: " output_dir
-
-# Loop over each BAM file in the output directory
-for bam_file in ${output_dir}/*_Aligned.sortedByCoord.out.bam
-do
-  # Extract the base name of the file (without path and extension)
-  base_name=$(basename ${bam_file} _Aligned.sortedByCoord.out.bam)
-
-  # Define the output file for flagstat results
-  flagstat_output="${output_dir}/${base_name}_flagstat.txt"
-
-  # Run samtools flagstat for the current BAM file
-  samtools flagstat ${bam_file} > ${flagstat_output}
+    echo "Trimmed: $base_name"
 done
 ```
 
-### Use **featureCounts** to quantify the aligned reads
-```{bash}
+---
 
+## Step 3: Download Reference Genome and Annotation
+
+Download human genome (GRCh38) and GTF annotation from Ensembl.
+
+```{bash}
 #!/bin/bash
 
-# Prompt the user to input directories and GTF file
-read -p "Enter the BAM directory: " bam_dir
-read -p "Enter the GTF file path: " gtf_file
-read -p "Enter the output directory for counts: " output_dir
-read -p "Is the data paired-end? (yes/no): " paired_end
+# Set output directory
+REF_DIR="/path/to/reference-genome"
+mkdir -p "$REF_DIR"
+cd "$REF_DIR"
 
-# Create the output directory if it does not exist
-mkdir -p ${output_dir}
+# Download human genome fasta
+wget https://ftp.ensembl.org/pub/release-112/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa.gz
 
-# Get a list of BAM files
-bam_files=$(ls ${bam_dir}/*_Aligned.sortedByCoord.out.bam)
+# Download annotation GTF
+wget https://ftp.ensembl.org/pub/release-112/gtf/homo_sapiens/Homo_sapiens.GRCh38.112.gtf.gz
 
-# Define the output file for featureCounts results
-counts_output="${output_dir}/unprocessed_counts.txt"
-
-# Determine the featureCounts options based on paired-end or single-end data
-if [ "$paired_end" == "yes" ]; then
-  featureCounts -T 12 \
-                -a ${gtf_file} \
-                -o ${counts_output} \
-                -p \
-                ${bam_files}
-else
-  featureCounts -T 12 \
-                -a ${gtf_file} \
-                -o ${counts_output} \
-                ${bam_files}
-fi
-
+# Decompress files
+gunzip Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa.gz
+gunzip Homo_sapiens.GRCh38.112.gtf.gz
 ```
 
-### The all_sample_featureCounts.txt must have the count data for every sample along with some additional columns that has to dropped in the downstream analysis.
+---
 
-### Read in the unprocessed counts matrix
+## Step 4: Generate STAR Genome Index
+
+Build the STAR index for alignment. This step requires significant memory (~32GB).
+
+```{bash}
+#!/bin/bash
+
+# Set paths
+GENOME_DIR="/path/to/star-index"
+GENOME_FASTA="/path/to/reference-genome/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa"
+GTF_FILE="/path/to/reference-genome/Homo_sapiens.GRCh38.112.gtf"
+NUM_CORES=8
+
+mkdir -p "$GENOME_DIR"
+
+# Generate STAR index
+STAR --runThreadN $NUM_CORES \
+     --runMode genomeGenerate \
+     --genomeDir "$GENOME_DIR" \
+     --genomeFastaFiles "$GENOME_FASTA" \
+     --sjdbGTFfile "$GTF_FILE" \
+     --sjdbOverhang 49
+```
+
+---
+
+## Step 5: Align Reads with STAR
+
+Align trimmed reads to the reference genome.
+
+```{bash}
+#!/bin/bash
+
+# Set paths
+INPUT_DIR="/path/to/trimmed/fastq"
+OUTPUT_DIR="/path/to/aligned/bam"
+GENOME_DIR="/path/to/star-index"
+NUM_CORES=8
+
+mkdir -p "$OUTPUT_DIR"
+
+# Align each sample
+for fastq_file in "$INPUT_DIR"/*.fastq; do
+    base_name=$(basename "$fastq_file" .fastq)
+    output_prefix="$OUTPUT_DIR/${base_name}_"
+
+    STAR --runThreadN $NUM_CORES \
+         --genomeDir "$GENOME_DIR" \
+         --readFilesIn "$fastq_file" \
+         --outFileNamePrefix "$output_prefix" \
+         --outSAMtype BAM SortedByCoordinate
+
+    echo "Aligned: $base_name"
+done
+```
+
+---
+
+## Step 6: Check Alignment Quality (Optional)
+
+Use samtools flagstat to check alignment statistics.
+
+```{bash}
+#!/bin/bash
+
+# Set paths
+BAM_DIR="/path/to/aligned/bam"
+
+# Run flagstat on each BAM file
+for bam_file in "$BAM_DIR"/*_Aligned.sortedByCoord.out.bam; do
+    base_name=$(basename "$bam_file" _Aligned.sortedByCoord.out.bam)
+    samtools flagstat "$bam_file" > "$BAM_DIR/${base_name}_flagstat.txt"
+done
+```
+
+---
+
+## Step 7: Quantify with featureCounts
+
+Count reads mapping to genes using featureCounts.
+
+```{bash}
+#!/bin/bash
+
+# Set paths
+BAM_DIR="/path/to/aligned/bam"
+GTF_FILE="/path/to/reference-genome/Homo_sapiens.GRCh38.112.gtf"
+OUTPUT_DIR="/path/to/counts"
+NUM_CORES=12
+
+mkdir -p "$OUTPUT_DIR"
+
+# Run featureCounts on all BAM files
+featureCounts -T $NUM_CORES \
+              -a "$GTF_FILE" \
+              -o "$OUTPUT_DIR/unprocessed_counts.txt" \
+              "$BAM_DIR"/*_Aligned.sortedByCoord.out.bam
+```
+
+---
+
+## Step 8: Clean Count Matrix in R
+
+Process the featureCounts output to create a clean count matrix.
+
+### Load required libraries
 ```{r}
 library(tidyverse)
 library(biomaRt)
-
-t1 <- read.table("/scratch1/s2599932/GSE75748/fastq-files/counts/all_samples_featureCounts.txt",header = TRUE, row.names = 1)
 ```
 
-
-### Clean the counts matrix in R from ENA
+### Read and clean count matrix
 ```{r}
-cleaned_colnames <- gsub(".*\\.([S|X]RR[0-9]+)_.*", "\\1", colnames(t1))
-colnames(t1) <- cleaned_colnames
+# Read featureCounts output
+counts_raw <- read.table("/path/to/counts/unprocessed_counts.txt",
+                         header = TRUE,
+                         row.names = 1)
 
-t1 <- t1 %>% dplyr::select(-all_of(c("Chr","Start","End","Strand","Length")))
+# Clean column names to extract sample IDs (for GEO/SRA data)
+cleaned_colnames <- gsub(".*\\.([S|X]RR[0-9]+)_.*", "\\1", colnames(counts_raw))
+colnames(counts_raw) <- cleaned_colnames
+
+# Remove featureCounts metadata columns
+counts <- counts_raw %>%
+  dplyr::select(-all_of(c("Chr", "Start", "End", "Strand", "Length")))
 ```
 
-### Clean the data frame matrix for ArrayExpress database
+### Alternative: Clean for ArrayExpress data
 ```{r}
-cleaned_colnames <- gsub(".*\\.([E|X]RR[0-9]+)_.*", "\\1", colnames(t1)) # Just extract the run accession use it as 
-colnames(t1) <- cleaned_colnames
+# For ArrayExpress data (ERR accessions)
+cleaned_colnames <- gsub(".*\\.([E|X]RR[0-9]+)_.*", "\\1", colnames(counts_raw))
+colnames(counts_raw) <- cleaned_colnames
 
-t1 <- t1 %>% dplyr::select(-all_of(c("Chr","Start","End","Strand","Length")))
+counts <- counts_raw %>%
+  dplyr::select(-all_of(c("Chr", "Start", "End", "Strand", "Length")))
 ```
 
-### Save the counts file
+### Save cleaned counts
 ```{r}
-write.csv(t1, file = "/home/s2599932/study-datasets/GSE75748/GSE75748_counts.csv", row.names = TRUE)
+write.csv(counts, file = "/path/to/output/counts.csv", row.names = TRUE)
 ```
 
-### Read in the counts data
-```{r}
-counts <- read.csv("../../study-datasets/human-dataset/GSE75748/GSE75748_counts.csv", header = TRUE, row.names = 1)
-```
+---
 
-### Check which rows have a sum of zero (i.e. genes that are not expressed in any samples)
+## Optional: Gene Annotation and Filtering
+
+### Check for zero-expression genes
 ```{r}
-# Calculate row sums
+# Load counts
+counts <- read.csv("/path/to/counts.csv", header = TRUE, row.names = 1)
+
+# Find genes with no expression
 row_sums <- rowSums(counts)
+zero_expression <- rownames(counts)[row_sums == 0]
 
-# Identify rows with a zero sum
-zero_sum_rows <- row_sums == 0
-
-# Display the rows with a zero sum
-rows_with_zero_sum <- counts[zero_sum_rows, ]
-print("Rows with a zero sum:")
-print(length(rownames(rows_with_zero_sum)))
-
-# Save the list of ensembl IDs of genes that have zero expression in all samples
-zero_expression_genes <- rownames(rows_with_zero_sum)
+cat("Genes with zero expression:", length(zero_expression), "\n")
 ```
 
-## Map the Ensembl IDs to Gene Biotypes and Gene Symbols using Biomart
+### Map Ensembl IDs to gene symbols
 ```{r}
-# Use the Ensembl database
+# Connect to Ensembl
 ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
 
-
-ensembl_ids <- rownames(counts)
-
-# Retrieve the information from Ensembl database
+# Get gene information
 gene_info <- getBM(
-    attributes = c("ensembl_gene_id", "external_gene_name", "gene_biotype"),
-    filters = "ensembl_gene_id",
-    values = ensembl_ids,
-    mart = ensembl
+  attributes = c("ensembl_gene_id", "external_gene_name", "gene_biotype"),
+  filters = "ensembl_gene_id",
+  values = rownames(counts),
+  mart = ensembl
 )
 ```
 
-
+### Filter for specific biotypes (e.g., lncRNA)
 ```{r}
-# Save the lncRNA values
-lncRNA_df<- gene_info %>%
+# Get lncRNA genes
+lncRNA_genes <- gene_info %>%
   filter(gene_biotype == "lncRNA")
 
-# Check how many of the lncRNA ensemblIDs doesnt have a gene symbol
-empty <- sum(lncRNA_df$external_gene_name == "")
-print(empty)
+# Subset counts to lncRNA only
+lncRNA_counts <- counts[lncRNA_genes$ensembl_gene_id, ]
+
+cat("lncRNA genes:", nrow(lncRNA_counts), "\n")
 ```
 
-## Subset the counts data frame to only contain lncRNA genes
-```{r}
-lncRNA_counts <- counts[lncRNA_df$ensembl_gene_id,]
-```
+---
 
+## Output
 
-## Check for lncRNA genes that has no expression in any samples
-```{r}
-lnc_row_sums <- rowSums(lncRNA_counts)
+After completing this pipeline, you will have:
 
-# Identify rows with a zero sum
-lnc_zero_sum_rows <- lnc_row_sums == 0
+1. **FastQC reports** - Quality metrics for each sample
+2. **MultiQC report** - Aggregated quality summary
+3. **Trimmed FASTQ files** - Quality-filtered reads
+4. **BAM files** - Aligned reads
+5. **Count matrix** - Gene expression counts (genes × samples)
 
-# Display the rows with a zero sum
-lnc_rows_with_zero_sum <- lncRNA_counts[lnc_zero_sum_rows, ]
-print("Rows with a zero sum:")
-print(length(rownames(lnc_rows_with_zero_sum)))
-
-# Save the list of ensembl IDs of genes that have zero expression in all samples
-lnc_zero_expression_genes <- rownames(lnc_rows_with_zero_sum)
-```
-
-
-
-
-
-
-
+The count matrix is ready for downstream analysis in R using packages like Seurat, scran, or scater.
