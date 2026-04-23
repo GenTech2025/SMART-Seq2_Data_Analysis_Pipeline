@@ -95,7 +95,7 @@ sce_fil_raw_two <- sce_raw_two[, !(libsize_drop_raw_two | feature_drop_raw_two |
 
 filtered_cells_raw_two <- colnames(sce_fil_raw_two)
 
-# Visualize different cell types in the datasets
+# Check different cell types in the datasets
 print(unique(colData(sce_raw_one)$development_stage))
 print(unique(colData(sce_raw_two)$cell_type))
 
